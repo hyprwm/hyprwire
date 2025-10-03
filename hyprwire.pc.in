@@ -1,0 +1,10 @@
+prefix=@PREFIX@
+includedir=@INCLUDE@
+libdir=@LIBDIR@
+
+Name: hyprwire
+URL: https://github.com/hyprwm/hyprwire
+Description: A fast and consistent wire protocol for IPC 
+Version: @HYPRWIRE_VERSION@
+Cflags: -I${includedir}
+Libs: -L${libdir} -lhyprwire
