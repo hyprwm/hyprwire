@@ -1,6 +1,7 @@
 #include "MessageParser.hpp"
 #include "MessageType.hpp"
 #include "../server/ServerClient.hpp"
+#include "../server/ServerSocket.hpp"
 #include "../client/ClientSocket.hpp"
 #include "../../helpers/Log.hpp"
 #include "../../helpers/Defines.hpp"
@@ -9,6 +10,10 @@
 #include "messages/HandshakeAck.hpp"
 #include "messages/HandshakeBegin.hpp"
 #include "messages/Hello.hpp"
+#include "messages/HandshakeProtocols.hpp"
+
+#include <hyprwire/core/implementation/ServerImpl.hpp>
+#include <hyprwire/core/implementation/Spec.hpp>
 #include <algorithm>
 
 using namespace Hyprwire;
@@ -51,7 +56,6 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
                 return msg->m_len;
             }
             case HW_MESSAGE_TYPE_HANDSHAKE_BEGIN: {
-                // protocol error
                 client->m_error = true;
                 Debug::log(ERR, "client at fd {} core protocol error: invalid message recvd (HANDSHAKE_BEGIN)", client->m_fd.get());
                 return 0;
@@ -66,7 +70,19 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
 
                 TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
 
+                std::vector<std::string> protocolNames;
+                protocolNames.reserve(client->m_server->m_impls.size());
+                for (const auto& impl : client->m_server->m_impls) {
+                    protocolNames.emplace_back(std::format("{}@{}", impl->protocol()->specName(), impl->protocol()->specVer()));
+                }
+                client->sendMessage(makeShared<CHandshakeProtocolsMessage>(protocolNames));
+
                 return msg->m_len;
+            }
+            case HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS: {
+                client->m_error = true;
+                Debug::log(ERR, "client at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS)", client->m_fd.get());
+                return 0;
             }
         }
 
@@ -108,6 +124,19 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
                 client->m_error = true;
                 Debug::log(ERR, "server at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_HANDSHAKE_ACK)", client->m_fd.get());
                 return 0;
+            }
+            case HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS: {
+                auto msg = makeShared<CHandshakeProtocolsMessage>(data, off);
+                if (!msg->m_len) {
+                    Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_HANDSHAKE_BEGIN)", client->m_fd.get());
+                    return 0;
+                }
+
+                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
+
+                client->serverSpecs(msg->m_protocols);
+
+                return msg->m_len;
             }
         }
 

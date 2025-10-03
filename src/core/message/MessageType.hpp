@@ -25,14 +25,14 @@ namespace Hyprwire {
         HW_MESSAGE_TYPE_HANDSHAKE_ACK = 3,
 
         /*
-            Sent by the server to advertise supported protocols and their precise specs
-            Params: arr(pspec) -> protocol specs
+            Sent by the server to advertise supported protocols
+            Params: arr(str) -> protocols
         */
         HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS = 4,
 
         /*
             Sent by the client to bind to a specific protocol spec
-            Params: uint -> protocol spec id
+            Params: str -> protocol spec
         */
         HW_MESSAGE_TYPE_BIND_PROTOCOL = 10,
 

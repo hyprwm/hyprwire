@@ -20,16 +20,20 @@ namespace Hyprwire {
         virtual void                                   addImplementation(SP<IProtocolClientImplementation>&&);
         virtual bool                                   dispatchEvents(bool block);
         virtual int                                    extractLoopFD();
+        virtual bool                                   waitForHandshake();
+        virtual SP<IProtocolSpec>                      getSpec(const std::string& name);
 
         void                                           sendMessage(const SP<IMessage>& message);
-
+        void                                           serverSpecs(const std::vector<std::string>& s);
         void                                           recheckPollFds();
 
         Hyprutils::OS::CFileDescriptor                 m_fd;
         std::vector<SP<IProtocolClientImplementation>> m_impls;
+        std::vector<SP<IProtocolSpec>>                 m_serverSpecs;
         std::vector<pollfd>                            m_pollfds;
 
-        bool                                           m_error = false;
+        bool                                           m_error         = false;
+        bool                                           m_handshakeDone = false;
 
         WP<CClientSocket>                              m_self;
     };

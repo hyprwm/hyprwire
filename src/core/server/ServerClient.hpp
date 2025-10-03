@@ -5,6 +5,7 @@
 
 namespace Hyprwire {
     class IMessage;
+    class CServerSocket;
 
     class CServerClient {
       public:
@@ -17,5 +18,7 @@ namespace Hyprwire {
 
         uint32_t                       m_version = 0;
         bool                           m_error   = false;
+
+        WP<CServerSocket>              m_server;
     };
 };

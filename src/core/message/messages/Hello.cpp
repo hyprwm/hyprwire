@@ -1,9 +1,10 @@
 #include "Hello.hpp"
 #include "../MessageType.hpp"
-#include "../MessageMagic.hpp"
 #include "../MessageParser.hpp"
 #include "../../../helpers/Env.hpp"
+
 #include <stdexcept>
+#include <hyprwire/core/types/MessageMagic.hpp>
 
 using namespace Hyprwire;
 

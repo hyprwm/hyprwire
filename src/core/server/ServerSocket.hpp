@@ -15,27 +15,27 @@ namespace Hyprwire {
         CServerSocket() = default;
         virtual ~CServerSocket();
 
-        bool                                     attempt(const std::string& path);
+        bool                                           attempt(const std::string& path);
 
-        virtual void                             addImplementation(SP<IProtocolImplementation>&&);
-        virtual bool                             dispatchEvents(bool block);
-        virtual int                              extractLoopFD();
+        virtual void                                   addImplementation(SP<IProtocolServerImplementation>&&);
+        virtual bool                                   dispatchEvents(bool block);
+        virtual int                                    extractLoopFD();
 
-        void                                     recheckPollFds();
-        void                                     dispatchNewConnections();
-        void                                     dispatchExistingConnections();
-        void                                     dispatchClient(SP<CServerClient> client);
+        void                                           recheckPollFds();
+        void                                           dispatchNewConnections();
+        void                                           dispatchExistingConnections();
+        void                                           dispatchClient(SP<CServerClient> client);
 
-        std::vector<SP<IProtocolImplementation>> m_impls;
+        std::vector<SP<IProtocolServerImplementation>> m_impls;
 
-        Hyprutils::OS::CFileDescriptor           m_fd;
+        Hyprutils::OS::CFileDescriptor                 m_fd;
 
-        std::vector<pollfd>                      m_pollfds;
-        std::vector<SP<CServerClient>>           m_clients;
+        std::vector<pollfd>                            m_pollfds;
+        std::vector<SP<CServerClient>>                 m_clients;
 
-        WP<CServerSocket>                        m_self;
+        WP<CServerSocket>                              m_self;
 
-        bool                                     m_success = false;
-        std::string                              m_path;
+        bool                                           m_success = false;
+        std::string                                    m_path;
     };
 };

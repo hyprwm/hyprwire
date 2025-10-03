@@ -3,7 +3,7 @@
 #include <hyprutils/memory/SharedPtr.hpp>
 
 namespace Hyprwire {
-    class IProtocolImplementation;
+    class IProtocolServerImplementation;
 
     class IServerSocket {
       public:
@@ -14,7 +14,7 @@ namespace Hyprwire {
         /*
             Add an implementation to the socket
         */
-        virtual void addImplementation(Hyprutils::Memory::CSharedPointer<IProtocolImplementation>&&) = 0;
+        virtual void addImplementation(Hyprutils::Memory::CSharedPointer<IProtocolServerImplementation>&&) = 0;
 
         /*
             Synchronously dispatch pending events. Returns false on failure.

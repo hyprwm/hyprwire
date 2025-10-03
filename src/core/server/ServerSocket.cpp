@@ -60,7 +60,7 @@ bool CServerSocket::attempt(const std::string& path) {
     return true;
 }
 
-void CServerSocket::addImplementation(SP<IProtocolImplementation>&& x) {
+void CServerSocket::addImplementation(SP<IProtocolServerImplementation>&& x) {
     m_impls.emplace_back(std::move(x));
 }
 
@@ -96,7 +96,8 @@ void CServerSocket::dispatchNewConnections() {
     sockaddr_in clientAddress = {};
     socklen_t   clientSize    = sizeof(clientAddress);
 
-    m_clients.emplace_back(makeShared<CServerClient>(accept(m_fd.get(), (sockaddr*)&clientAddress, &clientSize)));
+    auto        x = m_clients.emplace_back(makeShared<CServerClient>(accept(m_fd.get(), (sockaddr*)&clientAddress, &clientSize)));
+    x->m_server   = m_self;
 
     recheckPollFds();
 }

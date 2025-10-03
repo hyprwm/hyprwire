@@ -5,6 +5,7 @@
 #include "../message/MessageParser.hpp"
 #include "../message/messages/IMessage.hpp"
 #include "../message/messages/Hello.hpp"
+#include "ServerSpec.hpp"
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -108,4 +109,32 @@ void CClientSocket::sendMessage(const SP<IMessage>& message) {
 
 int CClientSocket::extractLoopFD() {
     return m_fd.get();
+}
+
+void CClientSocket::serverSpecs(const std::vector<std::string>& s) {
+    try {
+        for (const auto& specName : s) {
+            size_t atPos = specName.find_last_of('@');
+            m_serverSpecs.emplace_back(makeShared<CServerSpec>(specName.substr(0, atPos), std::stoul(specName.substr(atPos + 1))));
+        }
+    } catch (...) { m_error = true; }
+
+    m_handshakeDone = true;
+}
+
+bool CClientSocket::waitForHandshake() {
+    while (!m_error && !m_handshakeDone) {
+        if (!dispatchEvents(true))
+            return false;
+    }
+
+    return true;
+}
+
+SP<IProtocolSpec> CClientSocket::getSpec(const std::string& name) {
+    for (const auto& s : m_serverSpecs) {
+        if (s->specName() == name)
+            return s;
+    }
+    return nullptr;
 }

@@ -1,10 +1,11 @@
 #include "IMessage.hpp"
-#include "../MessageMagic.hpp"
 #include "../MessageParser.hpp"
 #include "../../../helpers/Memory.hpp"
 
 #include <format>
 #include <string_view>
+
+#include <hyprwire/core/types/MessageMagic.hpp>
 
 using namespace Hyprwire;
 
@@ -23,6 +24,11 @@ static std::pair<std::string, size_t> formatPrimitiveType(const std::span<uint8_
             auto id = *rc<uint32_t*>(&s[0]);
             return {std::format("object: {}", id == 0 ? "null" : std::to_string(id)), 4};
         }
+        case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
+            auto [len, intLen] = g_messageParser->parseVarInt(std::vector<uint8_t>(s.data(), s.data() + s.size() - 1), 0);
+            auto ptr           = rc<const char*>(&s[intLen]);
+            return {std::format("\"{}\"", std::string_view{ptr, len}), len + intLen};
+        }
     }
 
     return {"", 0};
@@ -37,6 +43,11 @@ std::string IMessage::parseData() {
     while (needle < m_data.size()) {
         switch (sc<eMessageMagic>(m_data.at(needle++))) {
             case HW_MESSAGE_MAGIC_END: {
+                break;
+            }
+            case HW_MESSAGE_MAGIC_TYPE_SEQ: {
+                result += std::format("seq: {}", *rc<uint32_t*>(&m_data.at(needle)));
+                needle += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_UINT: {
@@ -54,13 +65,6 @@ std::string IMessage::parseData() {
                 needle += 4;
                 break;
             }
-            case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
-                auto id = *rc<uint32_t*>(&m_data.at(needle));
-                result += std::format("object: {}", id == 0 ? "null" : std::to_string(id));
-                needle += 4;
-                break;
-            }
-            // variable
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                 auto [len, intLen] = g_messageParser->parseVarInt(m_data, needle);
                 auto ptr           = rc<const char*>(&m_data.at(needle + intLen));
@@ -75,7 +79,6 @@ std::string IMessage::parseData() {
                 needle += intLen;
 
                 for (size_t i = 0; i < els; ++i) {
-
                     auto [str, len] = formatPrimitiveType(std::span<uint8_t>{&m_data[needle], m_data.size() - needle}, thisType);
 
                     needle += len;
@@ -88,6 +91,15 @@ std::string IMessage::parseData() {
                 }
 
                 result += " }";
+                break;
+            }
+            case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
+                auto id = *rc<uint32_t*>(&m_data.at(needle));
+                needle += 4;
+                auto [strLen, intLen] = g_messageParser->parseVarInt(m_data, needle);
+                auto ptr              = rc<const char*>(&m_data.at(needle + intLen));
+                result += std::format("{}#{}", id == 0 ? "null" : std::to_string(id), std::string_view{ptr, strLen});
+                needle += strLen + intLen;
                 break;
             }
         }
