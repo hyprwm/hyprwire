@@ -7,8 +7,10 @@
 
 #include "./helpers/Env.hpp"
 
+static auto  STEADY_MILLIS_START = std::chrono::steady_clock::now();
+
 inline float steadyMillis() {
-    return (float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() / 1000.F;
+    return (float)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - STEADY_MILLIS_START).count() / 1000.F;
 }
 
 #define TRACE(expr)                                                                                                                                                                \
