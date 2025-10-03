@@ -12,7 +12,6 @@ namespace Hyprwire {
         CHandshakeAckMessage(uint32_t version);
         ~CHandshakeAckMessage() = default;
 
-        size_t   m_len     = 0;
         uint32_t m_version = 0;
     };
 };

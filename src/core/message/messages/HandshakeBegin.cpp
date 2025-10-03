@@ -2,6 +2,7 @@
 #include "../MessageType.hpp"
 #include "../MessageMagic.hpp"
 #include "../MessageParser.hpp"
+#include "../../../helpers/Env.hpp"
 #include <stdexcept>
 
 using namespace Hyprwire;
@@ -37,6 +38,10 @@ CHandshakeBeginMessage::CHandshakeBeginMessage(const std::vector<uint8_t>& data,
             return;
 
         m_len = needle + 1;
+
+        if (Env::isTrace())
+            m_data = std::vector<uint8_t>{data.begin() + offset, data.begin() + offset + m_len - 1};
+
     } catch (std::out_of_range& e) { m_len = 0; }
 }
 

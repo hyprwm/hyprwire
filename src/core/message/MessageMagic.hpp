@@ -27,13 +27,8 @@ namespace Hyprwire {
         HW_MESSAGE_MAGIC_TYPE_VARCHAR = 0x20,
 
         /*
-            [magic : 1B][n_els : VLQ]{ [len : VLQ]{ [data...] } ... }
+            [magic : 1B][type : 1B][n_els : VLQ]{ [data...] }
         */
         HW_MESSAGE_MAGIC_TYPE_ARRAY = 0x21,
-
-        /*
-            [magic : 1B][n_els : VLQ]{ [data...] ... }
-        */
-        HW_MESSAGE_MAGIC_TYPE_STRUCT = 0x22,
     };
 };

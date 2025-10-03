@@ -12,7 +12,6 @@ namespace Hyprwire {
         CHandshakeBeginMessage(const std::vector<uint32_t>& versions);
         ~CHandshakeBeginMessage() = default;
 
-        size_t                m_len = 0;
         std::vector<uint32_t> m_versionsSupported;
     };
 };

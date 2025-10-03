@@ -8,6 +8,7 @@
 
 #include "messages/HandshakeAck.hpp"
 #include "messages/HandshakeBegin.hpp"
+#include "messages/Hello.hpp"
 #include <algorithm>
 
 using namespace Hyprwire;
@@ -40,10 +41,14 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
     try {
         switch (sc<eMessageType>(data.at(off))) {
             case HW_MESSAGE_TYPE_HELLO: {
-                // send the list of protocol vers we support
-                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- HELLO", client->m_fd.get(), steadyMillis()));
+                auto msg = makeShared<CHelloMessage>(data, off);
+                if (!msg->m_len) {
+                    Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_HELLO)", client->m_fd.get());
+                    return 0;
+                }
+                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
                 client->sendMessage(makeShared<CHandshakeBeginMessage>(std::vector<uint32_t>{HYPRWIRE_PROTOCOL_VER}));
-                return 2;
+                return msg->m_len;
             }
             case HW_MESSAGE_TYPE_HANDSHAKE_BEGIN: {
                 // protocol error
@@ -59,7 +64,7 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
                 }
                 client->m_version = msg->m_version;
 
-                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- HANDSHAKE_ACK = {}", client->m_fd.get(), steadyMillis(), client->m_version));
+                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
 
                 return msg->m_len;
             }
@@ -92,7 +97,7 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
                     return 0;
                 }
 
-                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- HANDSHAKE_BEGIN = ({} version(s))", client->m_fd.get(), steadyMillis(), msg->m_versionsSupported.size()));
+                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
 
                 // version supported: let's select it
                 client->sendMessage(makeShared<CHandshakeAckMessage>(HYPRWIRE_PROTOCOL_VER));
