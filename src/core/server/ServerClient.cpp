@@ -44,6 +44,13 @@ SP<CServerObject> CServerClient::createObject(const std::string& protocol, const
             return nullptr;
         }
 
+        if (p->protocol()->specVer() < version) {
+            Debug::log(ERR, "[{} @ {:.3f}] Error: createObject for protocol {} object {} for version {}, but we have only {}", m_fd.get(), steadyMillis(), obj->m_protocolName,
+                       object, version, p->protocol()->specVer());
+            m_error = true;
+            return nullptr;
+        }
+
         break;
     }
 

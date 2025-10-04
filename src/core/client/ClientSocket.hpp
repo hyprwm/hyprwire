@@ -24,7 +24,7 @@ namespace Hyprwire {
         virtual int                                    extractLoopFD();
         virtual bool                                   waitForHandshake();
         virtual SP<IProtocolSpec>                      getSpec(const std::string& name);
-        virtual SP<IObject>                            bindProtocol(const SP<IProtocolSpec>& spec);
+        virtual SP<IObject>                            bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version);
 
         void                                           sendMessage(const SP<IMessage>& message);
         void                                           serverSpecs(const std::vector<std::string>& s);

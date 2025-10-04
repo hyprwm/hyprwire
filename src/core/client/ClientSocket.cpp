@@ -102,7 +102,7 @@ bool CClientSocket::dispatchEvents(bool block) {
 
     g_messageParser->handleMessage(data, m_self.lock());
 
-    return true;
+    return !m_error;
 }
 
 void CClientSocket::sendMessage(const SP<IMessage>& message) {
@@ -131,7 +131,7 @@ bool CClientSocket::waitForHandshake() {
             return false;
     }
 
-    return true;
+    return !m_error;
 }
 
 SP<IProtocolSpec> CClientSocket::getSpec(const std::string& name) {
@@ -151,13 +151,20 @@ void CClientSocket::onSeq(uint32_t seq, uint32_t id) {
     }
 }
 
-SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec) {
-    auto object    = makeShared<CClientObject>(m_self.lock());
-    object->m_spec = spec->objects().front();
-    object->m_seq  = ++m_seq;
+SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version) {
+    if (version > spec->specVer()) {
+        Debug::log(ERR, "version {} is larger than current spec ver of {}", version, spec->specVer());
+        m_error = true;
+        return nullptr;
+    }
+
+    auto object       = makeShared<CClientObject>(m_self.lock());
+    object->m_spec    = spec->objects().front();
+    object->m_seq     = ++m_seq;
+    object->m_version = version;
     m_objects.emplace_back(object);
 
-    auto bindMessage = makeShared<CBindProtocolMessage>(spec->specName(), object->m_seq);
+    auto bindMessage = makeShared<CBindProtocolMessage>(spec->specName(), object->m_seq, 1);
     sendMessage(bindMessage);
 
     while (!object->m_id) {

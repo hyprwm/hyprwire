@@ -54,14 +54,14 @@ int main(int argc, char** argv, char** envp) {
 
     std::println("test protocol supported at version {}. Binding.", SPEC->specVer());
 
-    obj = sock->bindProtocol(spec);
+    obj = sock->bindProtocol(spec, 1);
 
-    std::println("Bound!", SPEC->specVer());
+    std::println("Bound!");
 
     obj->call(0, "Hello!");
     obj->listen(0, rc<void*>(::onObjectS2CMessage));
 
-    std::println("Sent hello!", SPEC->specVer());
+    std::println("Sent hello!");
 
     while (sock->dispatchEvents(true)) {
         ;

@@ -24,7 +24,7 @@ namespace Hyprwire {
         virtual void                        sendMessage(SP<CGenericProtocolMessage>) = 0;
 
         std::vector<void*>                  m_listeners;
-        uint32_t                            m_id = 0;
+        uint32_t                            m_id = 0, m_version = 0;
         std::string                         m_protocolName;
 
         SP<IProtocolObjectSpec>             m_spec;

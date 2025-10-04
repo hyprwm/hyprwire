@@ -41,7 +41,7 @@ namespace Hyprwire {
         /*
             Bind a protocol object
         */
-        virtual Hyprutils::Memory::CSharedPointer<IObject> bindProtocol(const Hyprutils::Memory::CSharedPointer<IProtocolSpec>& spec) = 0;
+        virtual Hyprutils::Memory::CSharedPointer<IObject> bindProtocol(const Hyprutils::Memory::CSharedPointer<IProtocolSpec>& spec, uint32_t version) = 0;
 
       protected:
         IClientSocket() = default;

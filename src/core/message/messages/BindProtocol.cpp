@@ -33,6 +33,16 @@ CBindProtocolMessage::CBindProtocolMessage(const std::vector<uint8_t>& data, siz
 
         needle += strLen;
 
+        if (data.at(offset + needle) != HW_MESSAGE_MAGIC_TYPE_UINT)
+            return;
+
+        m_version = *rc<const uint32_t*>(&data.at(offset + needle + 1));
+
+        if (!m_version)
+            return;
+
+        needle += 5;
+
         if (data.at(offset + needle) != HW_MESSAGE_MAGIC_END)
             return;
 
@@ -44,7 +54,7 @@ CBindProtocolMessage::CBindProtocolMessage(const std::vector<uint8_t>& data, siz
     } catch (std::out_of_range& e) { m_len = 0; }
 }
 
-CBindProtocolMessage::CBindProtocolMessage(const std::string& protocol, uint32_t seq) {
+CBindProtocolMessage::CBindProtocolMessage(const std::string& protocol, uint32_t seq, uint32_t version) {
     m_type = HW_MESSAGE_TYPE_BIND_PROTOCOL;
 
     m_data = {
@@ -57,6 +67,10 @@ CBindProtocolMessage::CBindProtocolMessage(const std::string& protocol, uint32_t
 
     m_data.append_range(g_messageParser->encodeVarInt(protocol.length()));
     m_data.append_range(protocol);
+
+    m_data.append_range(std::vector<uint8_t>{HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0});
+
+    *rc<uint32_t*>(&m_data[m_data.size() - 4]) = version;
 
     m_data.emplace_back(HW_MESSAGE_MAGIC_END);
 }
