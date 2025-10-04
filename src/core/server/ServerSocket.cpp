@@ -36,8 +36,37 @@ CServerSocket::~CServerSocket() {
 
 bool CServerSocket::attempt(const std::string& path) {
     std::error_code ec;
-    if (std::filesystem::exists(path, ec) || ec)
-        return false;
+    if (std::filesystem::exists(path, ec)) {
+        if (ec)
+            return false;
+
+        // check if the socket is alive, if so, fuck off.
+        m_fd                      = CFileDescriptor{socket(AF_UNIX, SOCK_STREAM, 0)};
+        sockaddr_un serverAddress = {.sun_family = AF_UNIX};
+
+        if (path.size() >= 108)
+            return false;
+
+        strcpy(serverAddress.sun_path, path.c_str());
+
+        const bool FAILURE = connect(m_fd.get(), (sockaddr*)&serverAddress, SUN_LEN(&serverAddress)) < 0;
+
+        if (!FAILURE) {
+            m_fd.reset();
+            return false; // alive
+        }
+
+        if (errno != ECONNREFUSED)
+            return false; // likely alive
+
+        m_fd.reset();
+
+        // remove file and continue
+        std::filesystem::remove(path, ec);
+
+        if (ec)
+            return false; // no perms?
+    }
 
     m_fd                      = CFileDescriptor{socket(AF_UNIX, SOCK_STREAM, 0)};
     sockaddr_un serverAddress = {.sun_family = AF_UNIX};

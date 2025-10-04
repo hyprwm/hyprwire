@@ -1,12 +1,14 @@
 #include <hyprwire/hyprwire.hpp>
 #include "Spec.hpp"
 #include <print>
+#include <sys/signal.h>
 
 using namespace Hyprutils::Memory;
 
 #define SP CSharedPointer
 
-static SP<CTestProtocolSpec> spec = makeShared<CTestProtocolSpec>();
+static SP<CTestProtocolSpec> spec  = makeShared<CTestProtocolSpec>();
+static bool                  quitt = false;
 
 //
 static void onObjectC2SMessage(const char* data) {
@@ -37,13 +39,20 @@ class CTestProtocolImpl : public Hyprwire::IProtocolServerImplementation {
     }
 };
 
+static void sigHandler(int sig) {
+    quitt = true;
+}
+
 int main(int argc, char** argv, char** envp) {
     const auto XDG_RUNTIME_DIR = getenv("XDG_RUNTIME_DIR");
     auto       sock            = Hyprwire::IServerSocket::open(XDG_RUNTIME_DIR + std::string{"/test-hw.sock"});
 
     sock->addImplementation(makeShared<CTestProtocolImpl>());
 
-    while (sock->dispatchEvents(true)) {
+    signal(SIGINT, ::sigHandler);
+    signal(SIGTERM, ::sigHandler);
+
+    while (!quitt && sock->dispatchEvents(true)) {
         ;
     }
 
