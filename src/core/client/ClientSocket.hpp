@@ -9,6 +9,8 @@
 
 namespace Hyprwire {
     class IMessage;
+    class CClientObject;
+    class CGenericProtocolMessage;
 
     class CClientSocket : public IClientSocket {
       public:
@@ -22,19 +24,24 @@ namespace Hyprwire {
         virtual int                                    extractLoopFD();
         virtual bool                                   waitForHandshake();
         virtual SP<IProtocolSpec>                      getSpec(const std::string& name);
+        virtual SP<IObject>                            bindProtocol(const SP<IProtocolSpec>& spec);
 
         void                                           sendMessage(const SP<IMessage>& message);
         void                                           serverSpecs(const std::vector<std::string>& s);
         void                                           recheckPollFds();
+        void                                           onSeq(uint32_t seq, uint32_t id);
+        void                                           onGeneric(SP<CGenericProtocolMessage> msg);
 
         Hyprutils::OS::CFileDescriptor                 m_fd;
         std::vector<SP<IProtocolClientImplementation>> m_impls;
         std::vector<SP<IProtocolSpec>>                 m_serverSpecs;
         std::vector<pollfd>                            m_pollfds;
+        std::vector<SP<CClientObject>>                 m_objects;
 
         bool                                           m_error         = false;
         bool                                           m_handshakeDone = false;
 
         WP<CClientSocket>                              m_self;
+        uint32_t                                       m_seq = 0;
     };
 };

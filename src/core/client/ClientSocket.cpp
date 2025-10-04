@@ -5,7 +5,10 @@
 #include "../message/MessageParser.hpp"
 #include "../message/messages/IMessage.hpp"
 #include "../message/messages/Hello.hpp"
+#include "../message/messages/BindProtocol.hpp"
+#include "../message/messages/GenericProtocolMessage.hpp"
 #include "ServerSpec.hpp"
+#include "ClientObject.hpp"
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -137,4 +140,38 @@ SP<IProtocolSpec> CClientSocket::getSpec(const std::string& name) {
             return s;
     }
     return nullptr;
+}
+
+void CClientSocket::onSeq(uint32_t seq, uint32_t id) {
+    for (const auto& c : m_objects) {
+        if (c->m_seq == seq) {
+            c->m_id = id;
+            break;
+        }
+    }
+}
+
+SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec) {
+    auto object    = makeShared<CClientObject>(m_self.lock());
+    object->m_spec = spec->objects().front();
+    object->m_seq  = ++m_seq;
+    m_objects.emplace_back(object);
+
+    auto bindMessage = makeShared<CBindProtocolMessage>(spec->specName(), object->m_seq);
+    sendMessage(bindMessage);
+
+    while (!object->m_id) {
+        dispatchEvents(true);
+    }
+
+    return object;
+}
+
+void CClientSocket::onGeneric(SP<CGenericProtocolMessage> msg) {
+    for (const auto& o : m_objects) {
+        if (o->m_id == msg->m_object) {
+            o->called(msg->m_method, msg->m_dataSpan);
+            break;
+        }
+    }
 }

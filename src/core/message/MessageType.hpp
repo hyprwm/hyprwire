@@ -32,15 +32,15 @@ namespace Hyprwire {
 
         /*
             Sent by the client to bind to a specific protocol spec
-            Params: str -> protocol spec
+            Params: uint -> seq, str -> protocol spec
         */
         HW_MESSAGE_TYPE_BIND_PROTOCOL = 10,
 
         /*
             Sent by the server to acknowledge the bind and return a handle
-            Params: uint -> object handle ID
+            Params: uint -> object handle ID, uint -> seq
         */
-        HW_MESSAGE_TYPE_ACK_BIND_PROTOCOL = 11,
+        HW_MESSAGE_TYPE_NEW_OBJECT = 11,
 
         /*
             Generic protocol message. Can be either direction.
@@ -57,7 +57,7 @@ namespace Hyprwire {
             case HW_MESSAGE_TYPE_HANDSHAKE_ACK: return "HANDSHAKE_ACK";
             case HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS: return "HANDSHAKE_PROTOCOLS";
             case HW_MESSAGE_TYPE_BIND_PROTOCOL: return "BIND_PROTOCOL";
-            case HW_MESSAGE_TYPE_ACK_BIND_PROTOCOL: return "ACK_BIND_PROTOCOL";
+            case HW_MESSAGE_TYPE_NEW_OBJECT: return "NEW_OBJECT";
             case HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE: return "GENERIC_PROTOCOL_MESSAGE";
         }
         return "ERROR";

@@ -2,6 +2,7 @@
 #include "MessageType.hpp"
 #include "../server/ServerClient.hpp"
 #include "../server/ServerSocket.hpp"
+#include "../server/ServerObject.hpp"
 #include "../client/ClientSocket.hpp"
 #include "../../helpers/Log.hpp"
 #include "../../helpers/Defines.hpp"
@@ -11,6 +12,9 @@
 #include "messages/HandshakeBegin.hpp"
 #include "messages/Hello.hpp"
 #include "messages/HandshakeProtocols.hpp"
+#include "messages/BindProtocol.hpp"
+#include "messages/NewObject.hpp"
+#include "messages/GenericProtocolMessage.hpp"
 
 #include <hyprwire/core/implementation/ServerImpl.hpp>
 #include <hyprwire/core/implementation/Spec.hpp>
@@ -43,52 +47,88 @@ eMessageParsingResult CMessageParser::handleMessage(const std::vector<uint8_t>& 
 }
 
 size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size_t off, SP<CServerClient> client) {
-    try {
-        switch (sc<eMessageType>(data.at(off))) {
-            case HW_MESSAGE_TYPE_HELLO: {
-                auto msg = makeShared<CHelloMessage>(data, off);
-                if (!msg->m_len) {
-                    Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_HELLO)", client->m_fd.get());
-                    return 0;
-                }
-                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
-                client->sendMessage(makeShared<CHandshakeBeginMessage>(std::vector<uint32_t>{HYPRWIRE_PROTOCOL_VER}));
-                return msg->m_len;
-            }
-            case HW_MESSAGE_TYPE_HANDSHAKE_BEGIN: {
-                client->m_error = true;
-                Debug::log(ERR, "client at fd {} core protocol error: invalid message recvd (HANDSHAKE_BEGIN)", client->m_fd.get());
+
+    switch (sc<eMessageType>(data.at(off))) {
+        case HW_MESSAGE_TYPE_HELLO: {
+            auto msg = makeShared<CHelloMessage>(data, off);
+            if (!msg->m_len) {
+                Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_HELLO)", client->m_fd.get());
                 return 0;
             }
-            case HW_MESSAGE_TYPE_HANDSHAKE_ACK: {
-                auto msg = makeShared<CHandshakeAckMessage>(data, off);
-                if (!msg->m_len) {
-                    Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (HW_MESSAGE_HANDSHAKE_ACK)", client->m_fd.get());
-                    return 0;
-                }
-                client->m_version = msg->m_version;
-
-                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
-
-                std::vector<std::string> protocolNames;
-                protocolNames.reserve(client->m_server->m_impls.size());
-                for (const auto& impl : client->m_server->m_impls) {
-                    protocolNames.emplace_back(std::format("{}@{}", impl->protocol()->specName(), impl->protocol()->specVer()));
-                }
-                client->sendMessage(makeShared<CHandshakeProtocolsMessage>(protocolNames));
-
-                return msg->m_len;
-            }
-            case HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS: {
-                client->m_error = true;
-                Debug::log(ERR, "client at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS)", client->m_fd.get());
-                return 0;
-            }
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
+            client->sendMessage(makeShared<CHandshakeBeginMessage>(std::vector<uint32_t>{HYPRWIRE_PROTOCOL_VER}));
+            return msg->m_len;
         }
+        case HW_MESSAGE_TYPE_HANDSHAKE_BEGIN: {
+            client->m_error = true;
+            Debug::log(ERR, "client at fd {} core protocol error: invalid message recvd (HANDSHAKE_BEGIN)", client->m_fd.get());
+            return 0;
+        }
+        case HW_MESSAGE_TYPE_HANDSHAKE_ACK: {
+            auto msg = makeShared<CHandshakeAckMessage>(data, off);
+            if (!msg->m_len) {
+                Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (HW_MESSAGE_HANDSHAKE_ACK)", client->m_fd.get());
+                return 0;
+            }
+            client->m_version = msg->m_version;
 
-    } catch (std::out_of_range& e) { ; }
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
+
+            std::vector<std::string> protocolNames;
+            protocolNames.reserve(client->m_server->m_impls.size());
+            for (const auto& impl : client->m_server->m_impls) {
+                protocolNames.emplace_back(std::format("{}@{}", impl->protocol()->specName(), impl->protocol()->specVer()));
+            }
+            client->sendMessage(makeShared<CHandshakeProtocolsMessage>(protocolNames));
+
+            return msg->m_len;
+        }
+        case HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS: {
+            client->m_error = true;
+            Debug::log(ERR, "client at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS)", client->m_fd.get());
+            return 0;
+        }
+        case HW_MESSAGE_TYPE_BIND_PROTOCOL: {
+            auto msg = makeShared<CBindProtocolMessage>(data, off);
+            if (!msg->m_len) {
+                Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_BIND_PROTOCOL)", client->m_fd.get());
+                return 0;
+            }
+
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
+
+            // create a protocol object and send it back
+            auto obj = client->createObject(msg->m_protocol, "", 1 /* FIXME: */);
+
+            auto ret = makeShared<CNewObjectMessage>(msg->m_seq, obj->m_id);
+            client->sendMessage(ret);
+
+            client->onBind(obj);
+
+            return msg->m_len;
+        }
+        case HW_MESSAGE_TYPE_NEW_OBJECT: {
+            client->m_error = true;
+            Debug::log(ERR, "client at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_NEW_OBJECT)", client->m_fd.get());
+            return 0;
+        }
+        case HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE: {
+            auto msg = makeShared<CGenericProtocolMessage>(data, off);
+            if (!msg->m_len) {
+                Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE)", client->m_fd.get());
+                return 0;
+            }
+
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
+
+            client->onGeneric(msg);
+
+            return msg->m_len;
+        }
+    }
 
     Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (invalid type code)", client->m_fd.get());
+    client->m_error = true;
 
     return 0;
 }
@@ -128,13 +168,44 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
             case HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS: {
                 auto msg = makeShared<CHandshakeProtocolsMessage>(data, off);
                 if (!msg->m_len) {
-                    Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_HANDSHAKE_BEGIN)", client->m_fd.get());
+                    Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS)", client->m_fd.get());
                     return 0;
                 }
 
                 TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
 
                 client->serverSpecs(msg->m_protocols);
+
+                return msg->m_len;
+            }
+            case HW_MESSAGE_TYPE_BIND_PROTOCOL: {
+                client->m_error = true;
+                Debug::log(ERR, "server at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_BIND_PROTOCOL)", client->m_fd.get());
+                return 0;
+            }
+            case HW_MESSAGE_TYPE_NEW_OBJECT: {
+                auto msg = makeShared<CNewObjectMessage>(data, off);
+                if (!msg->m_len) {
+                    Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_NEW_OBJECT)", client->m_fd.get());
+                    return 0;
+                }
+
+                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
+
+                client->onSeq(msg->m_seq, msg->m_id);
+
+                return msg->m_len;
+            }
+            case HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE: {
+                auto msg = makeShared<CGenericProtocolMessage>(data, off);
+                if (!msg->m_len) {
+                    Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE)", client->m_fd.get());
+                    return 0;
+                }
+
+                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
+
+                client->onGeneric(msg);
 
                 return msg->m_len;
             }
@@ -148,13 +219,16 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
 }
 
 std::pair<size_t, size_t> CMessageParser::parseVarInt(const std::vector<uint8_t>& data, size_t offset) {
-    size_t rolling = 0;
-    size_t i       = 0;
-    try {
-        do {
-            rolling += ((sc<uint8_t>(data.at(i + offset) << 1) >> 1) << (i++ * 7));
-        } while (data.at(i + offset) & 0x80);
-    } catch (std::out_of_range& e) { return {0, 0}; }
+    return parseVarInt(std::span<const uint8_t>{&data[offset], data.size() - offset});
+}
+
+std::pair<size_t, size_t> CMessageParser::parseVarInt(const std::span<const uint8_t>& data) {
+    size_t     rolling = 0;
+    size_t     i       = 0;
+    const auto LEN     = data.size();
+    do {
+        rolling += ((sc<uint8_t>(data[i] << 1) >> 1) << (i++ * 7));
+    } while (i < LEN && data[i] & 0x80);
 
     return {rolling, i};
 }

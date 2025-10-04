@@ -10,7 +10,7 @@ static SP<CTestProtocolSpec> spec = makeShared<CTestProtocolSpec>();
 
 //
 static void onObjectC2SMessage(const char* data) {
-    std::println("Server says hello! We got data: {}", data);
+    std::println("Received: {}", data);
 }
 
 class CTestProtocolImpl : public Hyprwire::IProtocolServerImplementation {
@@ -26,9 +26,11 @@ class CTestProtocolImpl : public Hyprwire::IProtocolServerImplementation {
             Hyprwire::SServerObjectImplementation{
                 .objectName = "my_object",
                 .version    = 1,
-                .c2s =
-                    {
-                        rc<void*>(::onObjectC2SMessage),
+                .onBind =
+                    [](SP<Hyprwire::IObject> obj) {
+                        std::println("Hey, looks like an object was bound :)");
+                        obj->call(0, "You bound!");
+                        obj->listen(0, rc<void*>(::onObjectC2SMessage));
                     },
             },
         };

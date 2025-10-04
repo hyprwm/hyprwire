@@ -1,6 +1,8 @@
 #include "ServerSocket.hpp"
 #include "ServerClient.hpp"
 #include "../../helpers/Memory.hpp"
+#include "../../helpers/Log.hpp"
+#include "../../Macros.hpp"
 #include "../message/MessageParser.hpp"
 
 #include <sys/socket.h>
@@ -98,6 +100,7 @@ void CServerSocket::dispatchNewConnections() {
 
     auto        x = m_clients.emplace_back(makeShared<CServerClient>(accept(m_fd.get(), (sockaddr*)&clientAddress, &clientSize)));
     x->m_server   = m_self;
+    x->m_self     = x;
 
     recheckPollFds();
 }
@@ -109,10 +112,14 @@ void CServerSocket::dispatchExistingConnections() {
 
         if (m_pollfds.at(i).revents & POLLHUP) {
             m_clients.at(i - 1)->m_error = true;
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (hangup)", m_clients.at(i - 1)->m_fd.get(), steadyMillis()));
             continue;
         }
 
         dispatchClient(m_clients.at(i - 1));
+
+        if (m_clients.at(i - 1)->m_error)
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - 1)->m_fd.get(), steadyMillis()));
     }
 
     std::erase_if(m_clients, [](const auto& c) { return c->m_error; });

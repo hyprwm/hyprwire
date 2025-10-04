@@ -8,9 +8,8 @@ namespace Hyprwire {
     class IProtocolSpec;
 
     struct SClientObjectImplementation {
-        std::string        objectName = "";
-        uint32_t           version    = 0;
-        std::vector<void*> s2c;
+        std::string objectName = "";
+        uint32_t    version    = 0;
     };
 
     class IProtocolClientImplementation {

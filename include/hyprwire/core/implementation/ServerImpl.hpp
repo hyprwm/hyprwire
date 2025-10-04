@@ -3,14 +3,16 @@
 #include <hyprutils/memory/SharedPtr.hpp>
 #include <vector>
 #include <cstdint>
+#include <functional>
 
 namespace Hyprwire {
     class IProtocolSpec;
+    class IObject;
 
     struct SServerObjectImplementation {
-        std::string        objectName = "";
-        uint32_t           version    = 0;
-        std::vector<void*> c2s;
+        std::string                                                     objectName = "";
+        uint32_t                                                        version    = 0;
+        std::function<void(Hyprutils::Memory::CSharedPointer<IObject>)> onBind;
     };
 
     class IProtocolServerImplementation {

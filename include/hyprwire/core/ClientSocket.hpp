@@ -5,6 +5,7 @@
 namespace Hyprwire {
     class IProtocolClientImplementation;
     class IProtocolSpec;
+    class IObject;
 
     class IClientSocket {
       public:
@@ -36,6 +37,11 @@ namespace Hyprwire {
             Get a protocol spec from the server list. If the spec is supported, will be returned.
         */
         virtual Hyprutils::Memory::CSharedPointer<IProtocolSpec> getSpec(const std::string& name) = 0;
+
+        /*
+            Bind a protocol object
+        */
+        virtual Hyprutils::Memory::CSharedPointer<IObject> bindProtocol(const Hyprutils::Memory::CSharedPointer<IProtocolSpec>& spec) = 0;
 
       protected:
         IClientSocket() = default;

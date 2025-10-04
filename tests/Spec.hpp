@@ -14,16 +14,16 @@ class CTestObjectManager : public Hyprwire::IProtocolObjectSpec {
 
     virtual std::vector<Hyprwire::SMethod> c2s() {
         return {Hyprwire::SMethod{
-            .idx     = 0,
-            .params  = {Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR},
-            .returns = {},
+            .idx       = 0,
+            .params    = {Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR},
+            .returnsId = false,
         }};
     }
     virtual std::vector<Hyprwire::SMethod> s2c() {
         return {Hyprwire::SMethod{
-            .idx     = 0,
-            .params  = {Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR},
-            .returns = {},
+            .idx       = 0,
+            .params    = {Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR},
+            .returnsId = false,
         }};
     }
 };

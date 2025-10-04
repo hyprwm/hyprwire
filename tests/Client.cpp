@@ -7,10 +7,13 @@ using namespace Hyprutils::Memory;
 #define SP CSharedPointer
 
 static SP<CTestProtocolSpec> spec = makeShared<CTestProtocolSpec>();
+static SP<Hyprwire::IObject> obj;
 
 //
 static void onObjectS2CMessage(const char* data) {
-    std::println("Client says hello! We got data: {}", data);
+    std::println("Received: {}", data);
+    if (data == std::string{"You bound!"})
+        obj->call(0, "Sure did! Over VaxWire™");
 }
 
 class CTestProtocolImpl : public Hyprwire::IProtocolClientImplementation {
@@ -26,10 +29,6 @@ class CTestProtocolImpl : public Hyprwire::IProtocolClientImplementation {
             Hyprwire::SClientObjectImplementation{
                 .objectName = "my_object",
                 .version    = 1,
-                .s2c =
-                    {
-                        rc<void*>(::onObjectS2CMessage),
-                    },
             },
         };
     }
@@ -53,7 +52,16 @@ int main(int argc, char** argv, char** envp) {
         return 1;
     }
 
-    std::println("test protocol supported at version {}", SPEC->specVer());
+    std::println("test protocol supported at version {}. Binding.", SPEC->specVer());
+
+    obj = sock->bindProtocol(spec);
+
+    std::println("Bound!", SPEC->specVer());
+
+    obj->call(0, "Hello!");
+    obj->listen(0, rc<void*>(::onObjectS2CMessage));
+
+    std::println("Sent hello!", SPEC->specVer());
 
     while (sock->dispatchEvents(true)) {
         ;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <span>
 
 #include "../../helpers/Memory.hpp"
 
@@ -22,6 +23,7 @@ namespace Hyprwire {
         eMessageParsingResult     handleMessage(const std::vector<uint8_t>& data, SP<CServerClient> client);
         eMessageParsingResult     handleMessage(const std::vector<uint8_t>& data, SP<CClientSocket> client);
         std::pair<size_t, size_t> parseVarInt(const std::vector<uint8_t>& data, size_t offset);
+        std::pair<size_t, size_t> parseVarInt(const std::span<const uint8_t>& data);
         std::vector<uint8_t>      encodeVarInt(size_t num);
 
       private:

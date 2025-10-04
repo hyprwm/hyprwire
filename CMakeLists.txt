@@ -24,6 +24,7 @@ pkg_check_modules(
   REQUIRED
   IMPORTED_TARGET
   hyprutils>=0.9.0
+  libffi
 )
 
 configure_file(hyprwire.pc.in hyprwire.pc @ONLY)

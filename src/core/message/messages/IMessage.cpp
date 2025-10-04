@@ -96,10 +96,7 @@ std::string IMessage::parseData() {
             case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
                 auto id = *rc<uint32_t*>(&m_data.at(needle));
                 needle += 4;
-                auto [strLen, intLen] = g_messageParser->parseVarInt(m_data, needle);
-                auto ptr              = rc<const char*>(&m_data.at(needle + intLen));
-                result += std::format("{}#{}", id == 0 ? "null" : std::to_string(id), std::string_view{ptr, strLen});
-                needle += strLen + intLen;
+                result += std::format("object({})", id);
                 break;
             }
         }
