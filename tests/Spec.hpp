@@ -12,19 +12,23 @@ class CTestObjectManager : public Hyprwire::IProtocolObjectSpec {
         return "my_object";
     }
 
-    virtual std::vector<Hyprwire::SMethod> c2s() {
-        return {Hyprwire::SMethod{
-            .idx       = 0,
-            .params    = {Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR},
-            .returnsId = false,
-        }};
+    std::vector<Hyprwire::SMethod>                m_c2s = {Hyprwire::SMethod{
+                       .idx       = 0,
+                       .params    = {Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR},
+                       .returnsId = false,
+    }};
+
+    std::vector<Hyprwire::SMethod>                m_s2c = {Hyprwire::SMethod{
+                       .idx       = 0,
+                       .params    = {Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR},
+                       .returnsId = false,
+    }};
+
+    virtual const std::vector<Hyprwire::SMethod>& c2s() {
+        return m_c2s;
     }
-    virtual std::vector<Hyprwire::SMethod> s2c() {
-        return {Hyprwire::SMethod{
-            .idx       = 0,
-            .params    = {Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR},
-            .returnsId = false,
-        }};
+    virtual const std::vector<Hyprwire::SMethod>& s2c() {
+        return m_s2c;
     }
 };
 

@@ -49,10 +49,10 @@ eMessageParsingResult CMessageParser::handleMessage(const std::vector<uint8_t>& 
 size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size_t off, SP<CServerClient> client) {
 
     switch (sc<eMessageType>(data.at(off))) {
-        case HW_MESSAGE_TYPE_HELLO: {
+        case HW_MESSAGE_TYPE_SUP: {
             auto msg = makeShared<CHelloMessage>(data, off);
             if (!msg->m_len) {
-                Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_HELLO)", client->m_fd.get());
+                Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_SUP)", client->m_fd.get());
                 return 0;
             }
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
@@ -136,9 +136,9 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
 size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size_t off, SP<CClientSocket> client) {
     try {
         switch (sc<eMessageType>(data.at(off))) {
-            case HW_MESSAGE_TYPE_HELLO: {
+            case HW_MESSAGE_TYPE_SUP: {
                 client->m_error = true;
-                Debug::log(ERR, "server at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_HELLO)", client->m_fd.get());
+                Debug::log(ERR, "server at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_SUP)", client->m_fd.get());
                 return 0;
             }
             case HW_MESSAGE_TYPE_HANDSHAKE_BEGIN: {

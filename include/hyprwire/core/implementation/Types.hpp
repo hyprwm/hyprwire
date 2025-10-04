@@ -16,10 +16,10 @@ namespace Hyprwire {
       public:
         virtual ~IProtocolObjectSpec() = default;
 
-        virtual std::string          objectName() = 0;
+        virtual std::string                 objectName() = 0;
 
-        virtual std::vector<SMethod> c2s() = 0;
-        virtual std::vector<SMethod> s2c() = 0;
+        virtual const std::vector<SMethod>& c2s() = 0;
+        virtual const std::vector<SMethod>& s2c() = 0;
 
       protected:
         IProtocolObjectSpec() = default;

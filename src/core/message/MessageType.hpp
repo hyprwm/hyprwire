@@ -8,9 +8,9 @@ namespace Hyprwire {
 
         /*
             Sent by the client to initiate the handshake.
-            No parameters.
+            Params: str -> has to be "VAX"
         */
-        HW_MESSAGE_TYPE_HELLO = 1,
+        HW_MESSAGE_TYPE_SUP = 1,
 
         /*
             Sent by the server after a HELLO.
@@ -52,7 +52,7 @@ namespace Hyprwire {
     inline const char* messageTypeToStr(eMessageType t) {
         switch (t) {
             case HW_MESSAGE_TYPE_INVALID: return "INVALID";
-            case HW_MESSAGE_TYPE_HELLO: return "HELLO";
+            case HW_MESSAGE_TYPE_SUP: return "SUP";
             case HW_MESSAGE_TYPE_HANDSHAKE_BEGIN: return "HANDSHAKE_BEGIN";
             case HW_MESSAGE_TYPE_HANDSHAKE_ACK: return "HANDSHAKE_ACK";
             case HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS: return "HANDSHAKE_PROTOCOLS";

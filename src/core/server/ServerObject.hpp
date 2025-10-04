@@ -2,28 +2,24 @@
 
 #include <hyprwire/core/implementation/Object.hpp>
 #include <hyprwire/core/implementation/Types.hpp>
-#include <vector>
 
 #include "ServerClient.hpp"
 #include "../../helpers/Memory.hpp"
+#include "../wireObject/IWireObject.hpp"
 
 namespace Hyprwire {
     class CServerClient;
 
-    class CServerObject : public IObject {
+    class CServerObject : public IWireObject {
       public:
         CServerObject(SP<CServerClient> client);
         virtual ~CServerObject() = default;
 
-        virtual uint32_t        call(uint32_t id, ...);
-        virtual void            listen(uint32_t id, void* fn);
+        virtual const std::vector<SMethod>& methodsOut();
+        virtual const std::vector<SMethod>& methodsIn();
+        virtual void                        errd();
+        virtual void                        sendMessage(SP<CGenericProtocolMessage>);
 
-        std::vector<void*>      m_listeners;
-
-        WP<CServerClient>       m_client;
-        uint32_t                m_id = 0;
-        std::string             m_protocolName;
-
-        SP<IProtocolObjectSpec> m_spec;
+        WP<CServerClient>                   m_client;
     };
 };
