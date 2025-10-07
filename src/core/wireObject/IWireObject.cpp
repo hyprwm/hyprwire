@@ -2,6 +2,7 @@
 
 #include "../../helpers/Log.hpp"
 #include "../../helpers/FFI.hpp"
+#include "../client/ClientObject.hpp"
 #include "../message/MessageType.hpp"
 #include "../message/MessageParser.hpp"
 #include "../message/messages/GenericProtocolMessage.hpp"
@@ -24,7 +25,14 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     va_list va;
     va_start(va, id);
 
-    const auto params = METHODS.at(id).params;
+    const auto& method = METHODS.at(id);
+    const auto  params = method.params;
+
+    if (!method.returnsType.empty() && server()) {
+        Debug::log(ERR, "core protocol error: invalid method spec {} for object {} -> server cannot call returnsType methods", id, m_id);
+        errd();
+        return 0;
+    }
 
     // encode the message
     std::vector<uint8_t> data;
@@ -38,6 +46,17 @@ uint32_t IWireObject::call(uint32_t id, ...) {
 
     data.resize(data.size() + 4);
     *rc<uint32_t*>(&data[data.size() - 4]) = id;
+
+    size_t waitOnSeq = 0;
+
+    if (!method.returnsType.empty()) {
+        data.emplace_back(HW_MESSAGE_MAGIC_TYPE_SEQ);
+
+        data.resize(data.size() + 4);
+        auto selfClient                        = reinterpretPointerCast<CClientObject>(m_self.lock());
+        *rc<uint32_t*>(&data[data.size() - 4]) = ++selfClient->m_client->m_seq;
+        waitOnSeq                              = selfClient->m_client->m_seq;
+    }
 
     for (size_t i = 0; i < params.size(); ++i) {
         switch (sc<eMessageType>(params.at(i))) {
@@ -89,6 +108,14 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     auto msg = makeShared<CGenericProtocolMessage>(std::move(data));
     sendMessage(msg);
 
+    if (waitOnSeq) {
+        // we are a client
+        auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
+        auto obj        = selfClient->m_client->makeObject(m_protocolName, method.returnsType, waitOnSeq);
+        selfClient->m_client->waitForObject(obj);
+        return obj->m_id;
+    }
+
     return 0;
 }
 
@@ -110,9 +137,12 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
     if (m_listeners.size() <= id || m_listeners.at(id) == nullptr)
         return;
 
-    const auto             params = METHODS.at(id).params;
+    const auto&            method = METHODS.at(id);
+    const auto             params = method.params;
 
-    std::vector<ffi_type*> ffiTypes;
+    std::vector<ffi_type*> ffiTypes = {&ffi_type_pointer};
+    if (!method.returnsType.empty())
+        ffiTypes.emplace_back(&ffi_type_uint32);
     for (size_t i = 0; i < params.size(); ++i) {
         const auto PARAM   = sc<eMessageMagic>(params.at(i));
         auto       ffiType = FFI::ffiTypeFrom(PARAM);
@@ -145,6 +175,11 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
     buffers.reserve(ffiTypes.size());
     std::vector<SP<std::string>> strings;
 
+    auto                         ptrBuf = malloc(sizeof(IObject*));
+    buffers.emplace_back(ptrBuf);
+    avalues.emplace_back(ptrBuf);
+    *rc<IObject**>(ptrBuf) = m_self.get();
+
     for (size_t i = 0; i < data.size(); ++i) {
         void*      buf   = nullptr;
         const auto PARAM = sc<eMessageMagic>(data[i]);
@@ -153,33 +188,33 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
 
         switch (PARAM) {
             case HW_MESSAGE_MAGIC_TYPE_UINT: {
-                i += 5;
                 buf                 = malloc(sizeof(uint32_t));
-                *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i]);
+                *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);
+                i += 5;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_F32: {
-                i += 5;
                 buf              = malloc(sizeof(float));
-                *rc<float*>(buf) = *rc<const float*>(&data[i]);
+                *rc<float*>(buf) = *rc<const float*>(&data[i + 1]);
+                i += 5;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_INT: {
-                i += 5;
                 buf                = malloc(sizeof(int32_t));
-                *rc<int32_t*>(buf) = *rc<const int32_t*>(&data[i]);
+                *rc<int32_t*>(buf) = *rc<const int32_t*>(&data[i + 1]);
+                i += 5;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
-                i += 5;
                 buf                 = malloc(sizeof(uint32_t));
-                *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i]);
+                *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);
+                i += 5;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_SEQ: {
-                i += 5;
                 buf                 = malloc(sizeof(uint32_t));
-                *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i]);
+                *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);
+                i += 5;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR:

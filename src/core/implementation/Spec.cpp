@@ -2,6 +2,7 @@
 #include <hyprwire/core/implementation/Spec.hpp>
 #include <hyprwire/core/implementation/ServerImpl.hpp>
 #include <hyprwire/core/implementation/Object.hpp>
+#include <hyprwire/core/ServerSocket.hpp>
 
 using namespace Hyprwire;
 
@@ -9,3 +10,4 @@ IProtocolSpec::~IProtocolSpec()                                 = default;
 IProtocolServerImplementation::~IProtocolServerImplementation() = default;
 IProtocolClientImplementation::~IProtocolClientImplementation() = default;
 IObject::~IObject()                                             = default;
+IServerClient::~IServerClient()                                 = default;

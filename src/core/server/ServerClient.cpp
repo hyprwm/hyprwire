@@ -2,6 +2,8 @@
 #include "ServerObject.hpp"
 #include "ServerSocket.hpp"
 #include "../message/messages/IMessage.hpp"
+#include "../message/messages/NewObject.hpp"
+#include "../message/messages/GenericProtocolMessage.hpp"
 #include "../../helpers/Log.hpp"
 #include "../../Macros.hpp"
 
@@ -19,9 +21,11 @@ void CServerClient::sendMessage(const SP<IMessage>& message) {
     write(m_fd.get(), message->m_data.data(), message->m_data.size());
 }
 
-SP<CServerObject> CServerClient::createObject(const std::string& protocol, const std::string& object, uint32_t version) {
-    auto obj  = makeShared<CServerObject>(m_self.lock());
-    obj->m_id = m_maxId++;
+SP<CServerObject> CServerClient::createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq) {
+    auto obj       = makeShared<CServerObject>(m_self.lock());
+    obj->m_id      = m_maxId++;
+    obj->m_self    = obj;
+    obj->m_version = version;
     m_objects.emplace_back(obj);
 
     for (const auto& p : m_server->m_impls) {
@@ -60,6 +64,11 @@ SP<CServerObject> CServerClient::createObject(const std::string& protocol, const
         return nullptr;
     }
 
+    auto ret = makeShared<CNewObjectMessage>(seq, obj->m_id);
+    sendMessage(ret);
+
+    onBind(obj);
+
     return obj;
 }
 
@@ -82,5 +91,10 @@ void CServerClient::onBind(SP<CServerObject> obj) {
 }
 
 void CServerClient::onGeneric(SP<CGenericProtocolMessage> msg) {
-    ;
+    for (const auto& o : m_objects) {
+        if (o->m_id == msg->m_object) {
+            o->called(msg->m_method, msg->m_dataSpan);
+            break;
+        }
+    }
 }

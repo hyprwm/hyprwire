@@ -16,11 +16,11 @@ CClientObject::CClientObject(SP<CClientSocket> client) : m_client(client) {
 }
 
 const std::vector<SMethod>& CClientObject::methodsOut() {
-    return m_spec->s2c();
+    return m_spec->c2s();
 }
 
 const std::vector<SMethod>& CClientObject::methodsIn() {
-    return m_spec->c2s();
+    return m_spec->s2c();
 }
 
 void CClientObject::errd() {
@@ -29,4 +29,16 @@ void CClientObject::errd() {
 
 void CClientObject::sendMessage(SP<CGenericProtocolMessage> msg) {
     m_client->sendMessage(msg);
+}
+
+SP<IServerClient> CClientObject::client() {
+    return nullptr;
+}
+
+bool CClientObject::server() {
+    return false;
+}
+
+SP<IObject> CClientObject::self() {
+    return m_self.lock();
 }

@@ -9,7 +9,7 @@ namespace Hyprwire {
     struct SMethod {
         uint32_t             idx = 0;
         std::vector<uint8_t> params;
-        bool                 returnsId = false;
+        std::string          returnsType = "";
     };
 
     class IProtocolObjectSpec {

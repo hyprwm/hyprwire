@@ -43,6 +43,11 @@ namespace Hyprwire {
         */
         virtual Hyprutils::Memory::CSharedPointer<IObject> bindProtocol(const Hyprutils::Memory::CSharedPointer<IProtocolSpec>& spec, uint32_t version) = 0;
 
+        /*
+            Get an object from an id
+        */
+        virtual Hyprutils::Memory::CSharedPointer<IObject> objectForId(uint32_t id) = 0;
+
       protected:
         IClientSocket() = default;
     };

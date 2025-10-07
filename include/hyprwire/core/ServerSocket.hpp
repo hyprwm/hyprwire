@@ -4,6 +4,15 @@
 
 namespace Hyprwire {
     class IProtocolServerImplementation;
+    class IObject;
+
+    class IServerClient {
+      public:
+        virtual ~IServerClient();
+
+      protected:
+        IServerClient() = default;
+    };
 
     class IServerSocket {
       public:
@@ -15,6 +24,12 @@ namespace Hyprwire {
             Add an implementation to the socket
         */
         virtual void addImplementation(Hyprutils::Memory::CSharedPointer<IProtocolServerImplementation>&&) = 0;
+
+        /*
+            Create an object after client's request
+        */
+        virtual Hyprutils::Memory::CSharedPointer<IObject> createObject(Hyprutils::Memory::CSharedPointer<IServerClient> client,
+                                                                        Hyprutils::Memory::CSharedPointer<IObject> reference, const std::string& object, uint32_t seq) = 0;
 
         /*
             Synchronously dispatch pending events. Returns false on failure.

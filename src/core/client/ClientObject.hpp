@@ -15,12 +15,14 @@ namespace Hyprwire {
         CClientObject(SP<CClientSocket> client);
         virtual ~CClientObject() = default;
 
-        virtual const std::vector<SMethod>& methodsOut();
-        virtual const std::vector<SMethod>& methodsIn();
-        virtual void                        errd();
-        virtual void                        sendMessage(SP<CGenericProtocolMessage>);
+        virtual const std::vector<SMethod>&                      methodsOut();
+        virtual const std::vector<SMethod>&                      methodsIn();
+        virtual void                                             errd();
+        virtual void                                             sendMessage(SP<CGenericProtocolMessage>);
+        virtual Hyprutils::Memory::CSharedPointer<IServerClient> client();
+        virtual Hyprutils::Memory::CSharedPointer<IObject>       self();
+        virtual bool                                             server();
 
-        WP<CClientSocket>                   m_client;
-        uint32_t                            m_seq = 0;
+        WP<CClientSocket>                                        m_client;
     };
 };

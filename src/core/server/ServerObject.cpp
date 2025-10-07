@@ -30,3 +30,15 @@ void CServerObject::errd() {
 void CServerObject::sendMessage(SP<CGenericProtocolMessage> msg) {
     m_client->sendMessage(msg);
 }
+
+SP<IServerClient> CServerObject::client() {
+    return m_client.lock();
+}
+
+bool CServerObject::server() {
+    return true;
+}
+
+SP<IObject> CServerObject::self() {
+    return m_self.lock();
+}

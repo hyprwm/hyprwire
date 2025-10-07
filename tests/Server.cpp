@@ -7,12 +7,24 @@ using namespace Hyprutils::Memory;
 
 #define SP CSharedPointer
 
-static SP<CTestProtocolSpec> spec  = makeShared<CTestProtocolSpec>();
-static bool                  quitt = false;
+static SP<CTestProtocolSpec>       spec = makeShared<CTestProtocolSpec>();
+static SP<Hyprwire::IServerSocket> sock;
+static bool                        quitt = false;
 
 //
-static void onObjectC2SMessage(const char* data) {
-    std::println("Received: {}", data);
+static void onManagerC2SMessage(Hyprwire::IObject* obj, const char* data) {
+    std::println("Received on manager: {}", data);
+}
+
+static void onObjectC2SMessage(Hyprwire::IObject* obj, const char* data) {
+    std::println("Received on child: {}", data);
+}
+
+static void onManagerMakeObjectMessage(Hyprwire::IObject* obj, uint32_t seq) {
+    std::println("Received on manager: seq {}", seq);
+    auto x = sock->createObject(obj->client(), obj->self(), "my_object", seq);
+    x->listen(0, rc<void*>(::onObjectC2SMessage));
+    x->call(0, "Hi there new object!");
 }
 
 class CTestProtocolImpl : public Hyprwire::IProtocolServerImplementation {
@@ -26,14 +38,19 @@ class CTestProtocolImpl : public Hyprwire::IProtocolServerImplementation {
     virtual std::vector<Hyprwire::SServerObjectImplementation> implementation() {
         return {
             Hyprwire::SServerObjectImplementation{
-                .objectName = "my_object",
+                .objectName = "my_manager",
                 .version    = 1,
                 .onBind =
                     [](SP<Hyprwire::IObject> obj) {
                         std::println("Hey, looks like an object was bound :)");
                         obj->call(0, "You bound!");
-                        obj->listen(0, rc<void*>(::onObjectC2SMessage));
+                        obj->listen(0, rc<void*>(::onManagerC2SMessage));
+                        obj->listen(1, rc<void*>(::onManagerMakeObjectMessage));
                     },
+            },
+            Hyprwire::SServerObjectImplementation{
+                .objectName = "my_object",
+                .version    = 1,
             },
         };
     }
@@ -45,7 +62,7 @@ static void sigHandler(int sig) {
 
 int main(int argc, char** argv, char** envp) {
     const auto XDG_RUNTIME_DIR = getenv("XDG_RUNTIME_DIR");
-    auto       sock            = Hyprwire::IServerSocket::open(XDG_RUNTIME_DIR + std::string{"/test-hw.sock"});
+    sock                       = Hyprwire::IServerSocket::open(XDG_RUNTIME_DIR + std::string{"/test-hw.sock"});
 
     sock->addImplementation(makeShared<CTestProtocolImpl>());
 

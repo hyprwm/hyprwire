@@ -1,5 +1,6 @@
 #include "ServerSocket.hpp"
 #include "ServerClient.hpp"
+#include "ServerObject.hpp"
 #include "../../helpers/Memory.hpp"
 #include "../../helpers/Log.hpp"
 #include "../../Macros.hpp"
@@ -179,4 +180,19 @@ void CServerSocket::dispatchClient(SP<CServerClient> client) {
 
 int CServerSocket::extractLoopFD() {
     return m_fd.get();
+}
+
+SP<IObject> CServerSocket::createObject(SP<IServerClient> clientIface, SP<IObject> reference, const std::string& object, uint32_t seq) {
+    if (!clientIface || !reference)
+        return nullptr;
+
+    auto client = reinterpretPointerCast<CServerClient>(clientIface);
+    auto ref    = reinterpretPointerCast<CServerObject>(reference);
+
+    auto newObject = client->createObject(ref->m_protocolName, object, ref->m_version, seq);
+
+    if (!newObject)
+        return nullptr;
+
+    return newObject;
 }

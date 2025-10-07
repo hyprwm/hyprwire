@@ -10,6 +10,11 @@
 #include "ServerSpec.hpp"
 #include "ClientObject.hpp"
 
+#include <hyprwire/core/implementation/Object.hpp>
+#include <hyprwire/core/implementation/Types.hpp>
+#include <hyprwire/core/implementation/Spec.hpp>
+#include <hyprwire/core/implementation/ClientImpl.hpp>
+
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -158,20 +163,54 @@ SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec, uint32_t 
         return nullptr;
     }
 
-    auto object       = makeShared<CClientObject>(m_self.lock());
-    object->m_spec    = spec->objects().front();
-    object->m_seq     = ++m_seq;
-    object->m_version = version;
+    auto object            = makeShared<CClientObject>(m_self.lock());
+    object->m_spec         = spec->objects().front();
+    object->m_seq          = ++m_seq;
+    object->m_version      = version;
+    object->m_self         = object;
+    object->m_protocolName = spec->specName();
     m_objects.emplace_back(object);
 
     auto bindMessage = makeShared<CBindProtocolMessage>(spec->specName(), object->m_seq, 1);
     sendMessage(bindMessage);
 
-    while (!object->m_id) {
-        dispatchEvents(true);
-    }
+    waitForObject(object);
 
     return object;
+}
+
+SP<CClientObject> CClientSocket::makeObject(const std::string& protocolName, const std::string& objectName, uint32_t seq) {
+    auto object            = makeShared<CClientObject>(m_self.lock());
+    object->m_self         = object;
+    object->m_protocolName = protocolName;
+
+    for (const auto& p : m_impls) {
+        if (p->protocol()->specName() != protocolName)
+            continue;
+
+        for (const auto& o : p->protocol()->objects()) {
+            if (o->objectName() != objectName)
+                continue;
+
+            object->m_spec = o;
+            break;
+        }
+        break;
+    }
+
+    if (!object->m_spec)
+        return nullptr;
+
+    object->m_seq     = seq;
+    object->m_version = 0; // TODO: client version doesn't matter that much, but for verification's sake we could fix this
+    m_objects.emplace_back(object);
+    return object;
+}
+
+void CClientSocket::waitForObject(SP<CClientObject> x) {
+    while (!x->m_id) {
+        dispatchEvents(true);
+    }
 }
 
 void CClientSocket::onGeneric(SP<CGenericProtocolMessage> msg) {
@@ -181,4 +220,12 @@ void CClientSocket::onGeneric(SP<CGenericProtocolMessage> msg) {
             break;
         }
     }
+}
+
+SP<IObject> CClientSocket::objectForId(uint32_t id) {
+    for (const auto& o : m_objects) {
+        if (o->m_id == id)
+            return o;
+    }
+    return nullptr;
 }

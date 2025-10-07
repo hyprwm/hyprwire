@@ -22,12 +22,14 @@ namespace Hyprwire {
         virtual const std::vector<SMethod>& methodsIn()                              = 0;
         virtual void                        errd()                                   = 0;
         virtual void                        sendMessage(SP<CGenericProtocolMessage>) = 0;
+        virtual bool                        server()                                 = 0;
 
         std::vector<void*>                  m_listeners;
-        uint32_t                            m_id = 0, m_version = 0;
+        uint32_t                            m_id = 0, m_version = 0, m_seq = 1;
         std::string                         m_protocolName;
 
         SP<IProtocolObjectSpec>             m_spec;
+        WP<IWireObject>                     m_self;
 
       protected:
         IWireObject() = default;

@@ -97,13 +97,7 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
 
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg->parseData()));
 
-            // create a protocol object and send it back
-            auto obj = client->createObject(msg->m_protocol, "", msg->m_version);
-
-            auto ret = makeShared<CNewObjectMessage>(msg->m_seq, obj->m_id);
-            client->sendMessage(ret);
-
-            client->onBind(obj);
+            client->createObject(msg->m_protocol, "", msg->m_version, msg->m_seq);
 
             return msg->m_len;
         }

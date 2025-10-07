@@ -6,14 +6,21 @@ using namespace Hyprutils::Memory;
 
 #define SP CSharedPointer
 
-static SP<CTestProtocolSpec> spec = makeShared<CTestProtocolSpec>();
-static SP<Hyprwire::IObject> obj;
+static SP<CTestProtocolSpec>       spec = makeShared<CTestProtocolSpec>();
+static SP<Hyprwire::IObject>       obj;
+static SP<Hyprwire::IClientSocket> sock;
 
 //
-static void onObjectS2CMessage(const char* data) {
+static void onObjectS2CMessage(Hyprwire::IObject* obj, const char* data) {
     std::println("Received: {}", data);
-    if (data == std::string{"You bound!"})
+    if (data == std::string{"You bound!"}) {
         obj->call(0, "Sure did! Over VaxWire™");
+        obj->call(0, "I am now binding a new object!");
+        auto id  = obj->call(1);
+        auto obj = sock->objectForId(id);
+
+        obj->call(0, std::format("Hey, seems like I got id {}!", id).c_str());
+    }
 }
 
 class CTestProtocolImpl : public Hyprwire::IProtocolClientImplementation {
@@ -25,18 +32,20 @@ class CTestProtocolImpl : public Hyprwire::IProtocolClientImplementation {
     }
 
     virtual std::vector<Hyprwire::SClientObjectImplementation> implementation() {
-        return {
-            Hyprwire::SClientObjectImplementation{
-                .objectName = "my_object",
-                .version    = 1,
-            },
-        };
+        return {Hyprwire::SClientObjectImplementation{
+                    .objectName = "my_manager",
+                    .version    = 1,
+                },
+                Hyprwire::SClientObjectImplementation{
+                    .objectName = "my_object",
+                    .version    = 1,
+                }};
     }
 };
 
 int main(int argc, char** argv, char** envp) {
     const auto XDG_RUNTIME_DIR = getenv("XDG_RUNTIME_DIR");
-    auto       sock            = Hyprwire::IClientSocket::open(XDG_RUNTIME_DIR + std::string{"/test-hw.sock"});
+    sock                       = Hyprwire::IClientSocket::open(XDG_RUNTIME_DIR + std::string{"/test-hw.sock"});
 
     sock->addImplementation(makeShared<CTestProtocolImpl>());
 

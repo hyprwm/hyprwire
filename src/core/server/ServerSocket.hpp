@@ -20,6 +20,7 @@ namespace Hyprwire {
         virtual void                                   addImplementation(SP<IProtocolServerImplementation>&&);
         virtual bool                                   dispatchEvents(bool block);
         virtual int                                    extractLoopFD();
+        virtual SP<IObject>                            createObject(SP<IServerClient> client, SP<IObject> reference, const std::string& object, uint32_t seq);
 
         void                                           recheckPollFds();
         void                                           dispatchNewConnections();

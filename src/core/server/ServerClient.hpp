@@ -1,6 +1,7 @@
 #pragma once
 
 #include <hyprutils/os/FileDescriptor.hpp>
+#include <hyprwire/core/ServerSocket.hpp>
 #include <cstdint>
 #include <vector>
 #include "../../helpers/Memory.hpp"
@@ -11,13 +12,13 @@ namespace Hyprwire {
     class CServerObject;
     class CGenericProtocolMessage;
 
-    class CServerClient {
+    class CServerClient : public IServerClient {
       public:
         CServerClient(int fd);
-        ~CServerClient() = default;
+        virtual ~CServerClient() = default;
 
         void                           sendMessage(const SP<IMessage>& message);
-        SP<CServerObject>              createObject(const std::string& protocol, const std::string& object, uint32_t version);
+        SP<CServerObject>              createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq);
         void                           onBind(SP<CServerObject> obj);
         void                           onGeneric(SP<CGenericProtocolMessage> msg);
 
