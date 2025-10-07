@@ -50,4 +50,3 @@ SP<IServerSocket> CServerObject::serverSock() {
         return nullptr;
     return m_client->m_server.lock();
 }
-

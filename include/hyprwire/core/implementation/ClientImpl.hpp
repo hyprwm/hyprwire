@@ -16,8 +16,8 @@ namespace Hyprwire {
       public:
         virtual ~IProtocolClientImplementation();
 
-        virtual Hyprutils::Memory::CSharedPointer<IProtocolSpec> protocol()       = 0;
-        virtual std::vector<SClientObjectImplementation>         implementation() = 0;
+        virtual Hyprutils::Memory::CSharedPointer<IProtocolSpec>                            protocol()       = 0;
+        virtual std::vector<Hyprutils::Memory::CSharedPointer<SClientObjectImplementation>> implementation() = 0;
 
       protected:
         IProtocolClientImplementation() = default;

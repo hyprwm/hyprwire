@@ -96,20 +96,69 @@ void CServerSocket::addImplementation(SP<IProtocolServerImplementation>&& x) {
     m_impls.emplace_back(std::move(x));
 }
 
+bool CServerSocket::dispatchPending() {
+    poll(m_pollfds.data(), m_pollfds.size(), 0);
+    if (dispatchNewConnections())
+        return dispatchPending();
+
+    return dispatchExistingConnections();
+}
+
 bool CServerSocket::dispatchEvents(bool block) {
 
-    poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
+    m_pollmtx.lock();
 
-    dispatchNewConnections();
-    dispatchExistingConnections();
+    while (dispatchPending()) {
+        ;
+    }
+
+    // read from our event fd to avoid events
+    clearEventFd();
+
+    if (block) {
+        poll(m_pollfds.data(), m_pollfds.size(), -1);
+        while (dispatchPending()) {
+            ;
+        }
+    }
+
+    m_pollmtx.unlock();
 
     return true;
 }
 
+void CServerSocket::clearEventFd() {
+    char   buf[128];
+    pollfd pfd = {
+        .fd     = m_exportFd.get(),
+        .events = POLLIN,
+
+    };
+
+    while (m_exportFd.isValid()) {
+        poll(&pfd, 1, 0);
+
+        if (pfd.revents & POLLIN) {
+            read(m_exportFd.get(), buf, 127);
+            continue;
+        }
+
+        break;
+    }
+}
+
+constexpr const size_t INTERNAL_FDS = 2;
+
+//
 void CServerSocket::recheckPollFds() {
     m_pollfds.clear();
     m_pollfds.emplace_back(pollfd{
         .fd     = m_fd.get(),
+        .events = POLLIN,
+    });
+
+    m_pollfds.emplace_back(pollfd{
+        .fd     = m_exitFd.get(),
         .events = POLLIN,
     });
 
@@ -121,9 +170,9 @@ void CServerSocket::recheckPollFds() {
     }
 }
 
-void CServerSocket::dispatchNewConnections() {
+bool CServerSocket::dispatchNewConnections() {
     if (!(m_pollfds.at(0).revents & POLLIN))
-        return;
+        return false;
 
     sockaddr_in clientAddress = {};
     socklen_t   clientSize    = sizeof(clientAddress);
@@ -133,26 +182,34 @@ void CServerSocket::dispatchNewConnections() {
     x->m_self     = x;
 
     recheckPollFds();
+
+    return true;
 }
 
-void CServerSocket::dispatchExistingConnections() {
-    for (size_t i = 1; i < m_pollfds.size(); ++i) {
+bool CServerSocket::dispatchExistingConnections() {
+    bool hadAny = false;
+
+    for (size_t i = INTERNAL_FDS; i < m_pollfds.size(); ++i) {
         if (!(m_pollfds.at(i).revents & POLLIN))
             continue;
 
         if (m_pollfds.at(i).revents & POLLHUP) {
-            m_clients.at(i - 1)->m_error = true;
-            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (hangup)", m_clients.at(i - 1)->m_fd.get(), steadyMillis()));
+            m_clients.at(i - INTERNAL_FDS)->m_error = true;
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (hangup)", m_clients.at(i - INTERNAL_FDS)->m_fd.get(), steadyMillis()));
             continue;
         }
 
-        dispatchClient(m_clients.at(i - 1));
+        dispatchClient(m_clients.at(i - INTERNAL_FDS));
 
-        if (m_clients.at(i - 1)->m_error)
-            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - 1)->m_fd.get(), steadyMillis()));
+        hadAny = true;
+
+        if (m_clients.at(i - INTERNAL_FDS)->m_error)
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - INTERNAL_FDS)->m_fd.get(), steadyMillis()));
     }
 
     std::erase_if(m_clients, [](const auto& c) { return c->m_error; });
+
+    return hadAny;
 }
 
 void CServerSocket::dispatchClient(SP<CServerClient> client) {
@@ -179,7 +236,48 @@ void CServerSocket::dispatchClient(SP<CServerClient> client) {
 }
 
 int CServerSocket::extractLoopFD() {
-    return m_fd.get();
+    if (!m_exportFd.isValid()) {
+        int pipes[2];
+        pipe(pipes);
+
+        m_exportFd      = CFileDescriptor{pipes[0]};
+        m_exportWriteFd = CFileDescriptor{pipes[1]};
+
+        pipe(pipes);
+
+        m_exitFd      = CFileDescriptor{pipes[0]};
+        m_exitWriteFd = CFileDescriptor{pipes[1]};
+
+        m_threadCanPoll = true;
+
+        recheckPollFds();
+
+        m_pollThread = std::thread([this] {
+            while (m_threadCanPoll) {
+                m_pollmtx.lock();
+
+                std::vector<pollfd> pollfds;
+                pollfds.emplace_back(pollfd{
+                    .fd     = m_fd.get(),
+                    .events = POLLIN,
+                });
+
+                for (const auto& c : m_clients) {
+                    pollfds.emplace_back(pollfd{
+                        .fd     = c->m_fd.get(),
+                        .events = POLLIN,
+                    });
+                }
+
+                m_pollmtx.unlock();
+                poll(pollfds.data(), pollfds.size(), -1);
+
+                write(m_exportWriteFd.get(), "x", 1);
+            }
+        });
+    }
+
+    return m_exportFd.get();
 }
 
 SP<IObject> CServerSocket::createObject(SP<IServerClient> clientIface, SP<IObject> reference, const std::string& object, uint32_t seq) {

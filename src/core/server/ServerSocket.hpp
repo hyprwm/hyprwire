@@ -5,6 +5,7 @@
 #include "../../helpers/Memory.hpp"
 
 #include <vector>
+#include <thread>
 #include <sys/poll.h>
 
 namespace Hyprwire {
@@ -23,18 +24,26 @@ namespace Hyprwire {
         virtual SP<IObject>                            createObject(SP<IServerClient> client, SP<IObject> reference, const std::string& object, uint32_t seq);
 
         void                                           recheckPollFds();
-        void                                           dispatchNewConnections();
-        void                                           dispatchExistingConnections();
+        bool                                           dispatchNewConnections();
+        bool                                           dispatchExistingConnections();
+        bool                                           dispatchPending();
         void                                           dispatchClient(SP<CServerClient> client);
+        void                                           clearEventFd();
 
         std::vector<SP<IProtocolServerImplementation>> m_impls;
 
         Hyprutils::OS::CFileDescriptor                 m_fd;
+        Hyprutils::OS::CFileDescriptor                 m_exportFd, m_exportWriteFd;
+        Hyprutils::OS::CFileDescriptor                 m_exitFd, m_exitWriteFd;
 
         std::vector<pollfd>                            m_pollfds;
         std::vector<SP<CServerClient>>                 m_clients;
 
         WP<CServerSocket>                              m_self;
+
+        bool                                           m_threadCanPoll = false;
+        std::thread                                    m_pollThread;
+        std::mutex                                     m_pollmtx;
 
         bool                                           m_success = false;
         std::string                                    m_path;

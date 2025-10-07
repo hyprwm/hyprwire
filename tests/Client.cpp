@@ -31,15 +31,17 @@ class CTestProtocolImpl : public Hyprwire::IProtocolClientImplementation {
         return spec;
     }
 
-    virtual std::vector<Hyprwire::SClientObjectImplementation> implementation() {
-        return {Hyprwire::SClientObjectImplementation{
-                    .objectName = "my_manager",
-                    .version    = 1,
-                },
-                Hyprwire::SClientObjectImplementation{
-                    .objectName = "my_object",
-                    .version    = 1,
-                }};
+    virtual std::vector<SP<Hyprwire::SClientObjectImplementation>> implementation() {
+        return {
+            makeShared<Hyprwire::SClientObjectImplementation>(Hyprwire::SClientObjectImplementation{
+                .objectName = "my_manager",
+                .version    = 1,
+            }),
+            makeShared<Hyprwire::SClientObjectImplementation>(Hyprwire::SClientObjectImplementation{
+                .objectName = "my_object",
+                .version    = 1,
+            }),
+        };
     }
 };
 

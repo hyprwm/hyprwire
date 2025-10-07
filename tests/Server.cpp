@@ -35,9 +35,9 @@ class CTestProtocolImpl : public Hyprwire::IProtocolServerImplementation {
         return spec;
     }
 
-    virtual std::vector<Hyprwire::SServerObjectImplementation> implementation() {
+    virtual std::vector<Hyprutils::Memory::CSharedPointer<Hyprwire::SServerObjectImplementation>> implementation() {
         return {
-            Hyprwire::SServerObjectImplementation{
+            makeShared<Hyprwire::SServerObjectImplementation>(Hyprwire::SServerObjectImplementation{
                 .objectName = "my_manager",
                 .version    = 1,
                 .onBind =
@@ -47,11 +47,11 @@ class CTestProtocolImpl : public Hyprwire::IProtocolServerImplementation {
                         obj->listen(0, rc<void*>(::onManagerC2SMessage));
                         obj->listen(1, rc<void*>(::onManagerMakeObjectMessage));
                     },
-            },
-            Hyprwire::SServerObjectImplementation{
+            }),
+            makeShared<Hyprwire::SServerObjectImplementation>(Hyprwire::SServerObjectImplementation{
                 .objectName = "my_object",
                 .version    = 1,
-            },
+            }),
         };
     }
 };

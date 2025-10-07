@@ -78,11 +78,11 @@ void CServerClient::onBind(SP<CServerObject> obj) {
             continue;
 
         for (const auto& on : p->implementation()) {
-            if (on.objectName != obj->m_spec->objectName())
+            if (on->objectName != obj->m_spec->objectName())
                 continue;
 
-            if (on.onBind)
-                on.onBind(obj);
+            if (on->onBind)
+                on->onBind(obj);
             break;
         }
 
