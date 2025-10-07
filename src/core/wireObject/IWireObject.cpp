@@ -59,7 +59,7 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     }
 
     for (size_t i = 0; i < params.size(); ++i) {
-        switch (sc<eMessageType>(params.at(i))) {
+        switch (sc<eMessageMagic>(params.at(i))) {
             case HW_MESSAGE_MAGIC_TYPE_UINT: {
                 data.emplace_back(HW_MESSAGE_MAGIC_TYPE_UINT);
                 data.resize(data.size() + 4);
@@ -100,6 +100,8 @@ uint32_t IWireObject::call(uint32_t id, ...) {
                 // FIXME:
                 break;
             }
+
+            default: break;
         }
     }
 
@@ -150,6 +152,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
         ffiTypes.emplace_back(ffiType);
 
         switch (PARAM) {
+            case HW_MESSAGE_MAGIC_END: ++i; break; // BUG if this happens or malformed message
             case HW_MESSAGE_MAGIC_TYPE_UINT:
             case HW_MESSAGE_MAGIC_TYPE_F32:
             case HW_MESSAGE_MAGIC_TYPE_INT:
@@ -187,6 +190,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
         // FIXME: add type checking
 
         switch (PARAM) {
+            case HW_MESSAGE_MAGIC_END: ++i; break; // BUG if this happens or malformed message
             case HW_MESSAGE_MAGIC_TYPE_UINT: {
                 buf                 = malloc(sizeof(uint32_t));
                 *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);

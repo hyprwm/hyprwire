@@ -119,6 +119,7 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
 
             return msg->m_len;
         }
+        case HW_MESSAGE_TYPE_INVALID: break;
     }
 
     Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (invalid type code)", client->m_fd.get());
@@ -203,6 +204,7 @@ size_t CMessageParser::parseSingleMessage(const std::vector<uint8_t>& data, size
 
                 return msg->m_len;
             }
+            case HW_MESSAGE_TYPE_INVALID: break;
         }
 
     } catch (std::out_of_range& e) { ; }
