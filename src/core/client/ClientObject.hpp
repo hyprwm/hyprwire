@@ -21,6 +21,7 @@ namespace Hyprwire {
         virtual void                                             sendMessage(SP<CGenericProtocolMessage>);
         virtual Hyprutils::Memory::CSharedPointer<IServerClient> client();
         virtual Hyprutils::Memory::CSharedPointer<IObject>       self();
+        virtual Hyprutils::Memory::CSharedPointer<IClientSocket> clientSock();
         virtual bool                                             server();
 
         WP<CClientSocket>                                        m_client;

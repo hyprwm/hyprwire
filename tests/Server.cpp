@@ -22,7 +22,7 @@ static void onObjectC2SMessage(Hyprwire::IObject* obj, const char* data) {
 
 static void onManagerMakeObjectMessage(Hyprwire::IObject* obj, uint32_t seq) {
     std::println("Received on manager: seq {}", seq);
-    auto x = sock->createObject(obj->client(), obj->self(), "my_object", seq);
+    auto x = obj->serverSock()->createObject(obj->client(), obj->self(), "my_object", seq);
     x->listen(0, rc<void*>(::onObjectC2SMessage));
     x->call(0, "Hi there new object!");
 }

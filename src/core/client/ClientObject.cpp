@@ -1,4 +1,5 @@
 #include "ClientObject.hpp"
+#include "ClientSocket.hpp"
 #include "../../helpers/Log.hpp"
 #include "../../helpers/FFI.hpp"
 #include "../message/MessageType.hpp"
@@ -41,4 +42,10 @@ bool CClientObject::server() {
 
 SP<IObject> CClientObject::self() {
     return m_self.lock();
+}
+
+SP<IClientSocket> CClientObject::clientSock() {
+    if (!m_client)
+        return nullptr;
+    return m_client.lock();
 }

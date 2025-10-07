@@ -1,4 +1,6 @@
 #include "ServerObject.hpp"
+#include "ServerClient.hpp"
+#include "ServerSocket.hpp"
 #include "../../helpers/Log.hpp"
 #include "../message/MessageType.hpp"
 #include "../message/MessageParser.hpp"
@@ -42,3 +44,10 @@ bool CServerObject::server() {
 SP<IObject> CServerObject::self() {
     return m_self.lock();
 }
+
+SP<IServerSocket> CServerObject::serverSock() {
+    if (!m_client || !m_client->m_server)
+        return nullptr;
+    return m_client->m_server.lock();
+}
+
