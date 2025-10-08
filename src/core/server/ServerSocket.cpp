@@ -193,15 +193,15 @@ bool CServerSocket::dispatchExistingConnections() {
         if (!(m_pollfds.at(i).revents & POLLIN))
             continue;
 
+        dispatchClient(m_clients.at(i - INTERNAL_FDS));
+
+        hadAny = true;
+
         if (m_pollfds.at(i).revents & POLLHUP) {
             m_clients.at(i - INTERNAL_FDS)->m_error = true;
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (hangup)", m_clients.at(i - INTERNAL_FDS)->m_fd.get(), steadyMillis()));
             continue;
         }
-
-        dispatchClient(m_clients.at(i - INTERNAL_FDS));
-
-        hadAny = true;
 
         if (m_clients.at(i - INTERNAL_FDS)->m_error)
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - INTERNAL_FDS)->m_fd.get(), steadyMillis()));
