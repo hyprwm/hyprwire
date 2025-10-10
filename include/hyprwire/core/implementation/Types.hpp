@@ -10,6 +10,7 @@ namespace Hyprwire {
         uint32_t             idx = 0;
         std::vector<uint8_t> params;
         std::string          returnsType = "";
+        uint32_t             since       = 0;
     };
 
     class IProtocolObjectSpec {

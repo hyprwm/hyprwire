@@ -28,6 +28,12 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     const auto& method = METHODS.at(id);
     const auto  params = method.params;
 
+    if (method.since > m_version) {
+        Debug::log(ERR, "core protocol error: method {} since {} but has {}", id, method.since, m_version);
+        errd();
+        return 0;
+    }
+
     if (!method.returnsType.empty() && server()) {
         Debug::log(ERR, "core protocol error: invalid method spec {} for object {} -> server cannot call returnsType methods", id, m_id);
         errd();
@@ -139,8 +145,14 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
     if (m_listeners.size() <= id || m_listeners.at(id) == nullptr)
         return;
 
-    const auto&            method = METHODS.at(id);
-    const auto             params = method.params;
+    const auto& method = METHODS.at(id);
+    const auto  params = method.params;
+
+    if (method.since > m_version) {
+        Debug::log(ERR, "core protocol error: method {} since {} but has {}", id, method.since, m_version);
+        errd();
+        return;
+    }
 
     std::vector<ffi_type*> ffiTypes = {&ffi_type_pointer};
     if (!method.returnsType.empty())
