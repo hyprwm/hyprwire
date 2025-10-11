@@ -12,10 +12,11 @@ namespace Hyprwire {
         /*
             Primitive type identifiers
         */
-        HW_MESSAGE_MAGIC_TYPE_UINT = 0x10,
-        HW_MESSAGE_MAGIC_TYPE_INT  = 0x11,
-        HW_MESSAGE_MAGIC_TYPE_F32  = 0x12,
-        HW_MESSAGE_MAGIC_TYPE_SEQ  = 0x13,
+        HW_MESSAGE_MAGIC_TYPE_UINT      = 0x10,
+        HW_MESSAGE_MAGIC_TYPE_INT       = 0x11,
+        HW_MESSAGE_MAGIC_TYPE_F32       = 0x12,
+        HW_MESSAGE_MAGIC_TYPE_SEQ       = 0x13,
+        HW_MESSAGE_MAGIC_TYPE_OBJECT_ID = 0x14,
 
         /*
             Variable length types
