@@ -1,0 +1,16 @@
+@PACKAGE_INIT@
+
+set_and_check(BINDIR "@PACKAGE_CMAKE_INSTALL_BINDIR@")
+
+function(hyprwire_protocol targets protoName protoPath outputPath)
+    add_custom_command(
+        OUTPUT "${outputPath}/${protoName}.cpp"
+        COMMAND "${BINDIR}/hyprwire-scanner" "${protoPath}/${protoName}.xml" "${outputPath}"
+    )
+    foreach(target ${targets})
+        target_sources(${target} PRIVATE "${outputPath}/${protoName}.cpp")
+        target_sources(${target} PRIVATE "${outputPath}/${protoName}.hpp")
+    endforeach()
+endfunction()
+
+check_required_components(hyprwire-scanner)

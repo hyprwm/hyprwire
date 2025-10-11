@@ -1,0 +1,6 @@
+hyprwire_scanner=@PREFIX@/bin/hyprwire-scanner
+
+Name: Hyprwire Scanner
+URL: https://github.com/hyprwm/hyprwire
+Description: A protocol code generator for hyprwire
+Version: @VERSION@

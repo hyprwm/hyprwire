@@ -21,6 +21,7 @@ CMakeUserPresets.json
 build/
 .vscode/
 .cache/
+tests/generated/
 
 *.inc
 src/renderer/gl/shaders/Shaders.hpp

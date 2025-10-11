@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="test_protocol_v1" version="1">
+  <copyright>
+    I eat paint
+  </copyright>
+
+  <object name="my_manager_v1" version="1">
+    <description summary="manager object">
+      This object is an example manager object for the protocol
+    </description>
+
+    <s2c name="send_message">
+      <description summary="Send a text message">
+            Sends a text message to the client
+      </description>
+      <arg name="message" type="varchar" summary="message"/>
+    </s2c>
+
+    <c2s name="send_message">
+      <description summary="Send a text message">
+            Sends a text message to the server
+      </description>
+      <arg name="message" type="varchar" summary="message"/>
+    </c2s>
+
+    <c2s name="make_object">
+      <description summary="Make a test object">
+            Makes a test object
+      </description>
+      <returns iface="my_object_v1"/>
+    </c2s>
+
+  </object>
+
+  <object name="my_object_v1" version="1">
+    <description summary="test object">
+      This object is an example object for the protocol
+    </description>
+
+    <s2c name="send_message">
+      <description summary="Send a text message">
+            Sends a text message to the client
+      </description>
+      <arg name="message" type="varchar" summary="message"/>
+    </s2c>
+
+    <c2s name="send_message">
+      <description summary="Send a text message">
+            Sends a text message to the server
+      </description>
+      <arg name="message" type="varchar" summary="message"/>
+    </c2s>
+
+    <c2s name="destroy" destructor="true">
+      <description summary="Send a text message">
+            Sends a text message to the server
+      </description>
+    </c2s>
+
+  </object>
+</protocol>

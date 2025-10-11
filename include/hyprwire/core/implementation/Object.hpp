@@ -14,6 +14,9 @@ namespace Hyprwire {
         virtual uint32_t                                   call(uint32_t id, ...)        = 0;
         virtual void                                       listen(uint32_t id, void* fn) = 0;
 
+        virtual void                                       setData(void* data);
+        virtual void*                                      getData();
+
         virtual Hyprutils::Memory::CSharedPointer<IObject> self() = 0;
 
         // only for server objects
@@ -25,5 +28,8 @@ namespace Hyprwire {
 
       protected:
         IObject() = default;
+
+      private:
+        void* m_data = nullptr;
     };
 };

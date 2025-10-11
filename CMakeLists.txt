@@ -14,6 +14,8 @@ include(CTest)
 include(CheckIncludeFile)
 include(GNUInstallDirs)
 
+add_subdirectory(scanner)
+
 set(PREFIX ${CMAKE_INSTALL_PREFIX})
 set(INCLUDE ${CMAKE_INSTALL_FULL_INCLUDEDIR})
 set(LIBDIR ${CMAKE_INSTALL_FULL_LIBDIR})
@@ -73,11 +75,11 @@ endif()
 # tests
 add_custom_target(tests)
 
-add_executable(client "tests/Client.cpp")
+add_executable(client "tests/Client.cpp" "tests/generated/test_protocol_v1-client.cpp")
 target_link_libraries(client PRIVATE PkgConfig::deps hyprwire)
 add_dependencies(tests client)
 
-add_executable(server "tests/Server.cpp")
+add_executable(server "tests/Server.cpp" "tests/generated/test_protocol_v1-server.cpp")
 target_link_libraries(server PRIVATE PkgConfig::deps hyprwire)
 add_dependencies(tests server)
 
