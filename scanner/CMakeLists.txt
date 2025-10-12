@@ -30,7 +30,10 @@ pkg_check_modules(deps REQUIRED IMPORTED_TARGET pugixml)
 
 add_executable(hyprwire-scanner main.cpp)
 target_link_libraries(hyprwire-scanner PRIVATE rt Threads::Threads
-                                                  PkgConfig::deps)
+                                               PkgConfig::deps)
+
+target_include_directories(hyprwire-scanner
+                           PUBLIC "${CMAKE_SOURCE_DIR}/include")
 
 configure_package_config_file(
   hyprwire-scanner-config.cmake.in hyprwire-scanner-config.cmake
@@ -38,14 +41,13 @@ configure_package_config_file(
   PATH_VARS CMAKE_INSTALL_BINDIR)
 write_basic_package_version_file(
   "hyprwire-scanner-config-version.cmake"
-  VERSION "${VERSION}"
-  ARCH_INDEPENDENT
+  VERSION "${VERSION}" ARCH_INDEPENDENT
   COMPATIBILITY AnyNewerVersion)
 
 # Installation
 install(TARGETS hyprwire-scanner)
-install(FILES ${CMAKE_BINARY_DIR}/hyprwire-scanner.pc
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/hyprwire-scanner.pc
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
-install(FILES ${CMAKE_BINARY_DIR}/hyprwire-scanner-config.cmake
-              ${CMAKE_BINARY_DIR}/hyprwire-scanner-config-version.cmake
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/hyprwire-scanner-config.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/hyprwire-scanner-config-version.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/hyprwire-scanner)

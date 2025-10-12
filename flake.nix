@@ -37,7 +37,7 @@
 
       packages = eachSystem (system: {
         default = self.packages.${system}.hyprwire;
-        inherit (pkgsFor.${system}) hyprwire;
+        inherit (pkgsFor.${system}) hyprwire hyprwire-with-tests;
       });
 
       checks = eachSystem (system: self.packages.${system});
