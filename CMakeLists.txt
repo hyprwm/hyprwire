@@ -14,6 +14,8 @@ include(CTest)
 include(CheckIncludeFile)
 include(GNUInstallDirs)
 
+add_subdirectory(scanner)
+
 set(PREFIX ${CMAKE_INSTALL_PREFIX})
 set(INCLUDE ${CMAKE_INSTALL_FULL_INCLUDEDIR})
 set(LIBDIR ${CMAKE_INSTALL_FULL_LIBDIR})
@@ -60,8 +62,8 @@ target_include_directories(
   hyprwire
   PUBLIC "./include"
   PRIVATE "./src" "${CMAKE_BINARY_DIR}")
-set_target_properties(hyprwire PROPERTIES VERSION ${hyprwire_VERSION}
-                                            SOVERSION 1)
+set_target_properties(hyprwire PROPERTIES VERSION ${HYPRWIRE_VERSION} SOVERSION
+                                                                      1)
 target_link_libraries(hyprwire PkgConfig::deps)
 
 check_include_file("sys/timerfd.h" HAS_TIMERFD)
@@ -70,16 +72,64 @@ if(NOT HAS_TIMERFD AND epoll_FOUND)
   target_link_libraries(hyprwire PkgConfig::epoll)
 endif()
 
+# helper func
+function(protocol proto_dir proto_name is_client out_base out_var)
+  if(is_client)
+    set(mode "--client")
+    set(suffix "client")
+  else()
+    set(mode "")
+    set(suffix "server")
+  endif()
+
+  set(outdir "${CMAKE_SOURCE_DIR}/tests/generated")
+  set(xml_in "${proto_dir}/${proto_name}.xml")
+
+  set(tmp_cpp "${outdir}/${proto_name}-${suffix}.cpp")
+  set(tmp_hpp "${outdir}/${proto_name}-${suffix}.hpp")
+
+  set(out_cpp "${outdir}/${out_base}-${suffix}.cpp")
+  set(out_hpp "${outdir}/${out_base}-${suffix}.hpp")
+
+  add_custom_command(
+    OUTPUT "${out_cpp}" "${out_hpp}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${outdir}"
+    COMMAND hyprwire-scanner ${mode} "${xml_in}" "${outdir}"
+    DEPENDS hyprwire-scanner "${xml_in}"
+    VERBATIM
+    COMMENT
+      "Generating ${suffix} protocol from ${proto_name}.xml -> ${out_base}-${suffix}.{cpp,hpp}"
+  )
+
+  set(${out_var}
+      "${out_cpp};${out_hpp}"
+      PARENT_SCOPE)
+endfunction()
+
 # tests
-add_custom_target(tests)
+if(BUILD_TESTING)
+  message(STATUS "building tests is disabled")
 
-add_executable(client "tests/Client.cpp")
-target_link_libraries(client PRIVATE PkgConfig::deps hyprwire)
-add_dependencies(tests client)
+  enable_testing()
+  add_custom_target(tests)
 
-add_executable(server "tests/Server.cpp")
-target_link_libraries(server PRIVATE PkgConfig::deps hyprwire)
-add_dependencies(tests server)
+  message(STATUS "generating protocols")
+  protocol("${CMAKE_SOURCE_DIR}/tests" "protocol-v1" TRUE "test_protocol_v1"
+           CLIENT_GEN)
+  protocol("${CMAKE_SOURCE_DIR}/tests" "protocol-v1" FALSE "test_protocol_v1"
+           SERVER_GEN)
+  add_executable(client "${CMAKE_SOURCE_DIR}/tests/Client.cpp"
+                        "tests/generated/test_protocol_v1-client.cpp")
+  target_link_libraries(client PRIVATE PkgConfig::deps hyprwire)
+  add_dependencies(tests client)
+
+  add_executable(server "${CMAKE_SOURCE_DIR}/tests/Server.cpp"
+                        "tests/generated/test_protocol_v1-server.cpp")
+  target_link_libraries(server PRIVATE PkgConfig::deps hyprwire)
+  add_dependencies(tests server)
+else()
+  message(STATUS "building tests is disabled")
+endif()
 
 # Installation
 install(TARGETS hyprwire)

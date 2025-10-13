@@ -25,6 +25,7 @@ in {
           + "_"
           + (inputs.self.shortRev or "dirty");
       };
+      hyprwire-with-tests = final.hyprwire.override {doCheck = true;};
     })
   ];
 }

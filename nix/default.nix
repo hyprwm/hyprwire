@@ -5,11 +5,13 @@
   pkg-config,
   hyprutils,
   libffi,
+  pugixml,
   version ? "git",
+  doCheck ? false,
 }:
 stdenv.mkDerivation {
   pname = "hyprwire";
-  inherit version;
+  inherit version doCheck;
 
   src = ../.;
 
@@ -21,6 +23,7 @@ stdenv.mkDerivation {
   buildInputs = [
     hyprutils
     libffi
+    pugixml
   ];
 
   meta = {

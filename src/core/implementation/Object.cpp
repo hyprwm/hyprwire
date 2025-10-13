@@ -15,3 +15,11 @@ SP<IServerSocket> IObject::serverSock() {
 SP<IClientSocket> IObject::clientSock() {
     return nullptr;
 }
+
+void IObject::setData(void* data) {
+    m_data = data;
+}
+
+void* IObject::getData() {
+    return m_data;
+}
