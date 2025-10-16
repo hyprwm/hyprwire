@@ -9,5 +9,4 @@ using namespace Hyprwire;
 IProtocolSpec::~IProtocolSpec()                                 = default;
 IProtocolServerImplementation::~IProtocolServerImplementation() = default;
 IProtocolClientImplementation::~IProtocolClientImplementation() = default;
-IObject::~IObject()                                             = default;
 IServerClient::~IServerClient()                                 = default;

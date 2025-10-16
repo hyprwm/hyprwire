@@ -8,6 +8,11 @@
 
 using namespace Hyprwire;
 
+IObject::~IObject() {
+    if (m_onDestroy)
+        m_onDestroy();
+}
+
 SP<IServerSocket> IObject::serverSock() {
     return nullptr;
 }
@@ -22,4 +27,8 @@ void IObject::setData(void* data) {
 
 void* IObject::getData() {
     return m_data;
+}
+
+void IObject::setOnDestroy(std::function<void()>&& fn) {
+    m_onDestroy = std::move(fn);
 }

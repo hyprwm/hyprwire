@@ -1,6 +1,7 @@
 #pragma once
 
 #include <hyprutils/memory/SharedPtr.hpp>
+#include <functional>
 
 namespace Hyprwire {
     class IServerClient;
@@ -17,6 +18,8 @@ namespace Hyprwire {
         virtual void                                       setData(void* data);
         virtual void*                                      getData();
 
+        virtual void                                       setOnDestroy(std::function<void()>&& fn);
+
         virtual Hyprutils::Memory::CSharedPointer<IObject> self() = 0;
 
         // only for server objects
@@ -30,6 +33,7 @@ namespace Hyprwire {
         IObject() = default;
 
       private:
-        void* m_data = nullptr;
+        void*                 m_data = nullptr;
+        std::function<void()> m_onDestroy;
     };
 };

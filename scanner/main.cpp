@@ -544,6 +544,10 @@ class C{}Object {{
         return m_object;
     }}
 
+    void setOnDestroy(std::function<void()>&& fn) {{
+        m_object->setOnDestroy(std::move(fn));
+    }}
+
 )#",
                                    capitalize(o.nameCamel), capitalize(o.nameCamel), capitalize(o.nameCamel));
 
