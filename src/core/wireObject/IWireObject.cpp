@@ -7,12 +7,14 @@
 #include "../message/MessageParser.hpp"
 #include "../message/messages/GenericProtocolMessage.hpp"
 #include <hyprwire/core/types/MessageMagic.hpp>
+#include <hyprutils/utils/ScopeGuard.hpp>
 
 #include <cstdarg>
 #include <cstring>
 #include <ffi.h>
 
 using namespace Hyprwire;
+using namespace Hyprutils::Utils;
 
 uint32_t IWireObject::call(uint32_t id, ...) {
     const auto METHODS = methodsOut();
@@ -104,7 +106,9 @@ uint32_t IWireObject::call(uint32_t id, ...) {
 
             case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
                 // FIXME:
-                break;
+                Debug::log(ERR, "core protocol error: array type is not impld");
+                errd();
+                return 0;
             }
 
             default: break;
@@ -170,10 +174,22 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
             case HW_MESSAGE_MAGIC_TYPE_INT:
             case HW_MESSAGE_MAGIC_TYPE_OBJECT:
             case HW_MESSAGE_MAGIC_TYPE_SEQ: i += 5; break;
-            case HW_MESSAGE_MAGIC_TYPE_VARCHAR:
+            case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                 auto [a, b] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[i], data.size() - i});
                 i += a + b + 1;
                 break;
+            }
+            case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
+                // FIXME:
+                Debug::log(ERR, "core protocol error: array is not impld");
+                errd();
+                return;
+            }
+            case HW_MESSAGE_MAGIC_TYPE_OBJECT_ID: {
+                Debug::log(ERR, "core protocol error: object type is not impld");
+                errd();
+                return;
+            }
         }
     }
 
@@ -194,6 +210,12 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
     buffers.emplace_back(ptrBuf);
     avalues.emplace_back(ptrBuf);
     *rc<IObject**>(ptrBuf) = m_self.get();
+
+    CScopeGuard x([&] {
+        for (const auto& v : avalues) {
+            free(v);
+        }
+    });
 
     for (size_t i = 0; i < data.size(); ++i) {
         void*      buf   = nullptr;
@@ -233,13 +255,24 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
                 i += 5;
                 break;
             }
-            case HW_MESSAGE_MAGIC_TYPE_VARCHAR:
+            case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                 auto [strLen, len]     = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[i + 1], data.size() - i - 1});
                 buf                    = malloc(sizeof(const char*));
                 auto str               = strings.emplace_back(makeShared<std::string>(std::string_view{rc<const char*>(&data[i + len + 1]), strLen}));
                 *rc<const char**>(buf) = str->c_str();
                 i += strLen + len + 1;
                 break;
+            }
+            case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
+                Debug::log(ERR, "core protocol error: array type is not impld");
+                errd();
+                return;
+            }
+            case HW_MESSAGE_MAGIC_TYPE_OBJECT_ID: {
+                Debug::log(ERR, "core protocol error: object type is not impld");
+                errd();
+                return;
+            }
         }
         buffers.emplace_back(buf);
         avalues.emplace_back(buf);
@@ -247,8 +280,4 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
 
     auto fptr = reinterpret_cast<void (*)()>(m_listeners.at(id));
     ffi_call(&cif, fptr, nullptr, avalues.data());
-
-    for (const auto& v : avalues) {
-        free(v);
-    }
 }
