@@ -44,6 +44,8 @@ namespace Hyprwire {
         bool                                           m_error         = false;
         bool                                           m_handshakeDone = false;
 
+        std::chrono::steady_clock::time_point          m_handshakeBegin;
+
         WP<CClientSocket>                              m_self;
         uint32_t                                       m_seq = 0;
     };

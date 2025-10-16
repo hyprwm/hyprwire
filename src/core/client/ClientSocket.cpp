@@ -69,9 +69,22 @@ void CClientSocket::addImplementation(SP<IProtocolClientImplementation>&& x) {
     m_impls.emplace_back(std::move(x));
 }
 
+constexpr const size_t HANDSHAKE_MAX_MS = 5000;
+
+//
 bool CClientSocket::dispatchEvents(bool block) {
 
-    poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
+    if (!m_handshakeDone) {
+        const auto MAX_MS =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::milliseconds(HANDSHAKE_MAX_MS) - (std::chrono::steady_clock::now() - m_handshakeBegin)).count();
+        int ret = poll(m_pollfds.data(), m_pollfds.size(), block ? MAX_MS : 0);
+        if (block && !ret) {
+            Debug::log(ERR, "handshake error: timed out");
+            m_error = true;
+            return false;
+        }
+    } else
+        poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
 
     if (m_pollfds[0].revents & POLLHUP)
         return false;
@@ -126,6 +139,8 @@ void CClientSocket::serverSpecs(const std::vector<std::string>& s) {
 }
 
 bool CClientSocket::waitForHandshake() {
+    m_handshakeBegin = std::chrono::steady_clock::now();
+
     while (!m_error && !m_handshakeDone) {
         if (!dispatchEvents(true))
             return false;
