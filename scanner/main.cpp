@@ -296,7 +296,7 @@ Hyprwire::SMethod{{
                                            m.idx, argArrayStr, m.since);
         }
 
-        if (!object.c2s.empty())
+        if (!object.s2c.empty())
             HEADER_PROTOCOL.pop_back();
 
         HEADER_PROTOCOL += R"#(
@@ -746,8 +746,8 @@ int main(int argc, char** argv, char** envp) {
     // build!
 
     pugi::xml_document doc;
-    if (!doc.load_file(protopath.c_str())) {
-        std::cerr << "Couldn't load proto\n";
+    if (auto x = doc.load_file(protopath.c_str()); !x) {
+        std::cerr << "Couldn't load proto: " << x.description() << std::endl;
         return 1;
     }
 
