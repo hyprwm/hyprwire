@@ -1,10 +1,6 @@
 ## hyprwire
 A fast and consistent wire protocol for IPC
 
-> [!IMPORTANT]
-> hyprwire is in a very early stage of development. It's not finished yet
-> or stable.
-
 ## What is hyprwire
 
 Hyprwire is a fast and consistent wire protocol, and its implementation. This is essentially a
