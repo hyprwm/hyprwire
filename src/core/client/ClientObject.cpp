@@ -25,11 +25,13 @@ const std::vector<SMethod>& CClientObject::methodsIn() {
 }
 
 void CClientObject::errd() {
-    m_client->m_error = true;
+    if (m_client)
+        m_client->m_error = true;
 }
 
 void CClientObject::sendMessage(SP<CGenericProtocolMessage> msg) {
-    m_client->sendMessage(msg);
+    if (m_client)
+        m_client->sendMessage(msg);
 }
 
 SP<IServerClient> CClientObject::client() {
