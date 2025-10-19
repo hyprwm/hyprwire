@@ -38,6 +38,8 @@ int                                main(int argc, char** argv, char** envp) {
     std::println("Bound!");
 
     manager->sendSendMessage("Hello!");
+    manager->sendSendMessageArray(std::vector<const char*>{"Hello", "via", "array!"});
+    manager->sendSendMessageArrayUint(std::vector<uint32_t>{69, 420, 2137});
     manager->setSendMessage([](const char* msg) { std::println("Server says {}", msg); });
     object = makeShared<CCMyObjectV1Object>(manager->sendMakeObject());
     object->setSendMessage([](const char* msg) { std::println("Server says on object {}", msg); });

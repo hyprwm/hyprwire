@@ -9,7 +9,7 @@
 #include <hyprwire/core/types/MessageMagic.hpp>
 
 struct SRequestArgument {
-    Hyprwire::eMessageMagic magic = Hyprwire::HW_MESSAGE_MAGIC_END;
+    Hyprwire::eMessageMagic magic = Hyprwire::HW_MESSAGE_MAGIC_END, arrType = Hyprwire::HW_MESSAGE_MAGIC_END;
     std::string             interface;
     std::string             name;
     bool                    allowNull = false;
@@ -71,23 +71,24 @@ static Hyprwire::eMessageMagic strToMagic(const std::string_view& sv) {
         return Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32;
     // if (sv == "object")
     //     return Hyprwire::HW_MESSAGE_MAGIC_TYPE_OBJECT_ID;
-    // if (sv == "array")
-    //     return Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY;
+    if (sv.starts_with("array "))
+        return Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY;
     return Hyprwire::HW_MESSAGE_MAGIC_END;
 }
 
-static std::string magicToString(Hyprwire::eMessageMagic m) {
+static std::string magicToString(Hyprwire::eMessageMagic m, Hyprwire::eMessageMagic arrType = Hyprwire::HW_MESSAGE_MAGIC_END) {
     switch (m) {
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY, " + magicToString(arrType);
         default: return "";
     }
 }
 
-static std::string argToC(Hyprwire::eMessageMagic arg) {
-    switch (arg) {
+static std::string argToC(Hyprwire::eMessageMagic m) {
+    switch (m) {
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR: return "const char*";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT: return "uint32_t";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT: return "int32_t";
@@ -96,7 +97,18 @@ static std::string argToC(Hyprwire::eMessageMagic arg) {
     }
 }
 
-static std::string argsToC(const std::vector<SRequestArgument>& args, bool noNames = false, bool noTypes = false, bool addSequence = false) {
+static std::string argToC(const SRequestArgument& arg) {
+    switch (arg.magic) {
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR: return "const char*";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT: return "uint32_t";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT: return "int32_t";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32: return "float";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY: return "std::vector<" + argToC(arg.arrType) + ">";
+        default: return "";
+    }
+}
+
+static std::string argsToC(const std::vector<SRequestArgument>& args, bool noNames = false, bool noTypes = false, bool addSequence = false, bool pureC = false, bool unC = false) {
     std::string cstr;
 
     if (addSequence) {
@@ -111,13 +123,33 @@ static std::string argsToC(const std::vector<SRequestArgument>& args, bool noNam
     }
 
     for (const auto& m : args) {
-        if (noTypes)
-            cstr += std::format("{}, ", m.name);
-        else {
-            if (noNames)
-                cstr += std::format("{}, ", argToC(m.magic));
-            else
-                cstr += std::format("{} {}, ", argToC(m.magic), m.name);
+        if (m.arrType != Hyprwire::HW_MESSAGE_MAGIC_END && pureC) {
+            if (noTypes)
+                cstr += std::format("{}.data(), (uint32_t){}.size(), ", m.name, m.name);
+            else {
+                if (noNames)
+                    cstr += std::format("{}*, uint32_t, ", argToC(m.arrType));
+                else
+                    cstr += std::format("{}* {}, uint32_t {}, ", argToC(m.arrType), m.name, m.name + "_len");
+            }
+        } else if (m.arrType != Hyprwire::HW_MESSAGE_MAGIC_END && unC) {
+            if (noTypes)
+                cstr += std::format("std::vector<{}>{{ {}, {} + {} }}, ", argToC(m.arrType), m.name, m.name, m.name + "_len");
+            else {
+                if (noNames)
+                    cstr += std::format("{}, ", argToC(m));
+                else
+                    cstr += std::format("{} {}, ", argToC(m), m.name);
+            }
+        } else {
+            if (noTypes)
+                cstr += std::format("{}, ", m.name);
+            else {
+                if (noNames)
+                    cstr += std::format("{}, ", argToC(m));
+                else
+                    cstr += std::format("{} {}, ", argToC(m), m.name);
+            }
         }
     }
 
@@ -161,12 +193,13 @@ static bool scanProtocol(const pugi::xml_document& doc) {
 
             for (const auto& param : m.children()) {
                 if (param.name() == std::string_view{"arg"}) {
-                    method.args.emplace_back(SRequestArgument{
+                    auto& a = method.args.emplace_back(SRequestArgument{
                         .magic     = strToMagic(param.attribute("type").as_string()),
                         .name      = param.attribute("name").as_string(),
                         .allowNull = param.attribute("allow_null").as_bool(),
                     });
-                    continue;
+                    if (a.magic == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY)
+                        a.arrType = strToMagic(std::string{param.attribute("type").as_string()}.substr(6));
                 }
 
                 if (param.name() == std::string_view{"returns"}) {
@@ -192,11 +225,13 @@ static bool scanProtocol(const pugi::xml_document& doc) {
 
             for (const auto& param : m.children()) {
                 if (param.name() == std::string_view{"arg"}) {
-                    method.args.emplace_back(SRequestArgument{
+                    auto& a = method.args.emplace_back(SRequestArgument{
                         .magic     = strToMagic(param.attribute("type").as_string()),
                         .name      = param.attribute("name").as_string(),
                         .allowNull = param.attribute("allow_null").as_bool(),
                     });
+                    if (a.magic == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY)
+                        a.arrType = strToMagic(std::string{param.attribute("type").as_string()}.substr(6));
                     continue;
                 }
 
@@ -222,6 +257,7 @@ static bool generateProtocolHeader(const pugi::xml_document& doc) {
 
 #include <hyprwire/core/types/MessageMagic.hpp>
 #include <hyprwire/hyprwire.hpp>
+#include <vector>
     )#";
 
     // begin objects
@@ -248,7 +284,7 @@ class C{}Spec : public Hyprwire::IProtocolObjectSpec {{
 
             std::string argArrayStr;
             for (const auto& p : m.args) {
-                argArrayStr += magicToString(p.magic) + ", ";
+                argArrayStr += magicToString(p.magic, p.arrType) + ", ";
             }
 
             if (!argArrayStr.empty())
@@ -438,8 +474,8 @@ static void {}_method{}(Hyprwire::IObject* r{}) {{
         fn({});
 }}
 )#",
-                                  o.nameCamel, m.idx, m.args.empty() ? "" : ", " + argsToC(m.args), std::format("CC{}Object", capitalize(o.nameCamel)), m.name,
-                                  argsToC(m.args, false, true));
+                                  o.nameCamel, m.idx, m.args.empty() ? "" : ", " + argsToC(m.args, false, false, false, true), std::format("CC{}Object", capitalize(o.nameCamel)),
+                                  m.name, argsToC(m.args, false, true, false, false, true));
         }
 
         SOURCE += std::format(R"#(
@@ -469,7 +505,8 @@ void CC{}Object::send{}({}) {{
     m_object->call({}{});
 }}
 )#",
-                                      capitalize(o.nameCamel), capitalize(camelize(m.name)), argsToC(m.args), m.idx, m.args.empty() ? "" : ", " + argsToC(m.args, false, true));
+                                      capitalize(o.nameCamel), capitalize(camelize(m.name)), argsToC(m.args), m.idx,
+                                      m.args.empty() ? "" : ", " + argsToC(m.args, false, true, false, true));
             } else {
                 SOURCE += std::format(R"#(
 
@@ -478,7 +515,8 @@ SP<Hyprwire::IObject> CC{}Object::send{}({}) {{
     return m_object->clientSock()->objectForId(id);
 }}
 )#",
-                                      capitalize(o.nameCamel), capitalize(camelize(m.name)), argsToC(m.args), m.idx, m.args.empty() ? "" : ", " + argsToC(m.args, false, true));
+                                      capitalize(o.nameCamel), capitalize(camelize(m.name)), argsToC(m.args), m.idx,
+                                      m.args.empty() ? "" : ", " + argsToC(m.args, false, true, false, true));
             }
         }
 
@@ -620,8 +658,8 @@ static void {}_method{}(Hyprwire::IObject* r{}) {{
         fn({});
 }}
 )#",
-                                  o.nameCamel, m.idx, m.args.empty() && m.returns.empty() ? "" : ", " + argsToC(m.args, false, false, !m.returns.empty()),
-                                  std::format("C{}Object", capitalize(o.nameCamel)), m.name, argsToC(m.args, false, true, !m.returns.empty()));
+                                  o.nameCamel, m.idx, m.args.empty() && m.returns.empty() ? "" : ", " + argsToC(m.args, false, false, !m.returns.empty(), true),
+                                  std::format("C{}Object", capitalize(o.nameCamel)), m.name, argsToC(m.args, false, true, !m.returns.empty(), false, true));
         }
 
         SOURCE += std::format(R"#(
@@ -645,12 +683,13 @@ C{}Object::~C{}Object() {{
                               capitalize(o.nameCamel), capitalize(o.nameCamel));
 
         for (const auto& m : o.s2c) {
-            SOURCE += std::format(R"#(
+            SOURCE +=
+                std::format(R"#(
 void C{}Object::send{}({}) {{
     m_object->call({}{});
 }}
 )#",
-                                  capitalize(o.nameCamel), capitalize(camelize(m.name)), argsToC(m.args), m.idx, m.args.empty() ? "" : ", " + argsToC(m.args, false, true));
+                            capitalize(o.nameCamel), capitalize(camelize(m.name)), argsToC(m.args), m.idx, m.args.empty() ? "" : ", " + argsToC(m.args, false, true, false, true));
         }
 
         for (const auto& m : o.c2s) {

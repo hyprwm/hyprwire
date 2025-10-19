@@ -105,10 +105,41 @@ uint32_t IWireObject::call(uint32_t id, ...) {
             }
 
             case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
-                // FIXME:
-                Debug::log(ERR, "core protocol error: array type is not impld");
-                errd();
-                return 0;
+                const auto arrType = sc<eMessageMagic>(params.at(++i));
+                data.emplace_back(HW_MESSAGE_MAGIC_TYPE_ARRAY);
+                data.emplace_back(arrType);
+
+                auto arrayData = va_arg(va, void*);
+                auto arrayLen  = va_arg(va, uint32_t);
+                data.append_range(g_messageParser->encodeVarInt(arrayLen));
+
+                switch (arrType) {
+                    case HW_MESSAGE_MAGIC_TYPE_UINT:
+                    case HW_MESSAGE_MAGIC_TYPE_INT:
+                    case HW_MESSAGE_MAGIC_TYPE_F32:
+                    case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
+                        for (size_t i = 0; i < arrayLen; ++i) {
+                            data.resize(data.size() + 4);
+                            *rc<uint32_t*>(&data[data.size() - 4]) = rc<uint32_t*>(arrayData)[i];
+                        }
+                        break;
+                    }
+                    case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
+                        for (size_t i = 0; i < arrayLen; ++i) {
+                            const char* element = rc<const char**>(arrayData)[i];
+                            data.append_range(g_messageParser->encodeVarInt(std::strlen(element)));
+                            data.append_range(std::string_view(element));
+                        }
+                        break;
+                    }
+                    default: {
+                        Debug::log(ERR, "core protocol error: failed marshaling array type");
+                        errd();
+                        return 0;
+                    }
+                }
+
+                break;
             }
 
             default: break;
@@ -161,10 +192,10 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
     std::vector<ffi_type*> ffiTypes = {&ffi_type_pointer};
     if (!method.returnsType.empty())
         ffiTypes.emplace_back(&ffi_type_uint32);
+    size_t dataI = 0;
     for (size_t i = 0; i < params.size(); ++i) {
         const auto PARAM   = sc<eMessageMagic>(params.at(i));
         auto       ffiType = FFI::ffiTypeFrom(PARAM);
-        // FIXME: this will break with arrays
         ffiTypes.emplace_back(ffiType);
 
         switch (PARAM) {
@@ -173,17 +204,49 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
             case HW_MESSAGE_MAGIC_TYPE_F32:
             case HW_MESSAGE_MAGIC_TYPE_INT:
             case HW_MESSAGE_MAGIC_TYPE_OBJECT:
-            case HW_MESSAGE_MAGIC_TYPE_SEQ: i += 5; break;
+            case HW_MESSAGE_MAGIC_TYPE_SEQ: dataI += 4; break;
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
-                auto [a, b] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[i], data.size() - i});
-                i += a + b + 1;
+                auto [a, b] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI], data.size() - dataI});
+                dataI += a + b + 1;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
-                // FIXME:
-                Debug::log(ERR, "core protocol error: array is not impld");
-                errd();
-                return;
+                const auto arrType    = sc<eMessageMagic>(params.at(++i));
+                auto [arrLen, lenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI + 2], data.size() - i});
+                size_t arrMessageLen  = 2 + lenLen;
+
+                ffiTypes.emplace_back(FFI::ffiTypeFrom(HW_MESSAGE_MAGIC_TYPE_UINT /* length */));
+
+                switch (arrType) {
+                    case HW_MESSAGE_MAGIC_TYPE_UINT:
+                    case HW_MESSAGE_MAGIC_TYPE_F32:
+                    case HW_MESSAGE_MAGIC_TYPE_INT:
+                    case HW_MESSAGE_MAGIC_TYPE_OBJECT:
+                    case HW_MESSAGE_MAGIC_TYPE_SEQ: {
+                        arrMessageLen += 4 * arrLen;
+                        break;
+                    }
+                    case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
+                        for (size_t j = 0; j < arrLen; ++j) {
+                            if (dataI + arrMessageLen > data.size()) {
+                                Debug::log(ERR, "core protocol error: failed demarshaling array message");
+                                errd();
+                                return;
+                            }
+                            auto [strLen, strlenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI + arrMessageLen], data.size() - dataI - arrMessageLen});
+                            arrMessageLen += strLen + strlenLen;
+                        }
+                        break;
+                    }
+                    default: {
+                        Debug::log(ERR, "core protocol error: failed demarshaling array message");
+                        errd();
+                        return;
+                    }
+                }
+
+                dataI += arrMessageLen;
+                break;
             }
             case HW_MESSAGE_MAGIC_TYPE_OBJECT_ID: {
                 Debug::log(ERR, "core protocol error: object type is not impld");
@@ -200,14 +263,11 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
         return;
     }
 
-    std::vector<void*> avalues;
-    std::vector<void*> buffers;
+    std::vector<void*> avalues, otherBuffers;
     avalues.reserve(ffiTypes.size());
-    buffers.reserve(ffiTypes.size());
     std::vector<SP<std::string>> strings;
 
     auto                         ptrBuf = malloc(sizeof(IObject*));
-    buffers.emplace_back(ptrBuf);
     avalues.emplace_back(ptrBuf);
     *rc<IObject**>(ptrBuf) = m_self.get();
 
@@ -215,58 +275,116 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
         for (const auto& v : avalues) {
             free(v);
         }
+        for (const auto& v : otherBuffers) {
+            free(v);
+        }
     });
 
     for (size_t i = 0; i < data.size(); ++i) {
         void*      buf   = nullptr;
         const auto PARAM = sc<eMessageMagic>(data[i]);
-        // FIXME: this will break with arrays
         // FIXME: add type checking
 
+        if (PARAM == HW_MESSAGE_MAGIC_END)
+            break;
+
         switch (PARAM) {
-            case HW_MESSAGE_MAGIC_END: ++i; break; // BUG if this happens or malformed message
+            case HW_MESSAGE_MAGIC_END: break;
             case HW_MESSAGE_MAGIC_TYPE_UINT: {
                 buf                 = malloc(sizeof(uint32_t));
                 *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);
-                i += 5;
+                i += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_F32: {
                 buf              = malloc(sizeof(float));
                 *rc<float*>(buf) = *rc<const float*>(&data[i + 1]);
-                i += 5;
+                i += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_INT: {
                 buf                = malloc(sizeof(int32_t));
                 *rc<int32_t*>(buf) = *rc<const int32_t*>(&data[i + 1]);
-                i += 5;
+                i += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
                 buf                 = malloc(sizeof(uint32_t));
                 *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);
-                i += 5;
+                i += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_SEQ: {
                 buf                 = malloc(sizeof(uint32_t));
                 *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);
-                i += 5;
+                i += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                 auto [strLen, len]     = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[i + 1], data.size() - i - 1});
                 buf                    = malloc(sizeof(const char*));
-                auto str               = strings.emplace_back(makeShared<std::string>(std::string_view{rc<const char*>(&data[i + len + 1]), strLen}));
+                auto& str              = strings.emplace_back(makeShared<std::string>(std::string_view{rc<const char*>(&data[i + len + 1]), strLen}));
                 *rc<const char**>(buf) = str->c_str();
-                i += strLen + len + 1;
+                i += strLen + len;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
-                Debug::log(ERR, "core protocol error: array type is not impld");
-                errd();
-                return;
+                const auto arrType    = sc<eMessageMagic>(data[i + 1]);
+                auto [arrLen, lenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[i + 2], data.size() - i});
+                size_t arrMessageLen  = 2 + lenLen;
+
+                switch (arrType) {
+                    case HW_MESSAGE_MAGIC_TYPE_UINT:
+                    case HW_MESSAGE_MAGIC_TYPE_F32:
+                    case HW_MESSAGE_MAGIC_TYPE_INT:
+                    case HW_MESSAGE_MAGIC_TYPE_OBJECT:
+                    case HW_MESSAGE_MAGIC_TYPE_SEQ: {
+                        auto dataPtr  = rc<uint32_t*>(malloc(sizeof(uint32_t) * arrLen));
+                        auto dataSlot = rc<uint32_t**>(malloc(sizeof(uint32_t**)));
+                        auto sizeSlot = rc<uint32_t*>(malloc(sizeof(uint32_t)));
+
+                        *dataSlot = dataPtr;
+                        *sizeSlot = arrLen;
+
+                        avalues.emplace_back(dataSlot);
+                        avalues.emplace_back(sizeSlot);
+                        otherBuffers.emplace_back(dataPtr);
+
+                        for (size_t j = 0; j < arrLen; ++j) {
+                            dataPtr[j] = *rc<const uint32_t*>(&data[i + arrMessageLen]);
+                            arrMessageLen += 4;
+                        }
+                        break;
+                    }
+                    case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
+                        auto dataPtr  = rc<const char**>(malloc(sizeof(const char*) * arrLen));
+                        auto dataSlot = rc<const char***>(malloc(sizeof(const char***)));
+                        auto sizeSlot = rc<uint32_t*>(malloc(sizeof(uint32_t)));
+
+                        *dataSlot = dataPtr;
+                        *sizeSlot = arrLen;
+
+                        avalues.emplace_back(dataSlot);
+                        avalues.emplace_back(sizeSlot);
+                        otherBuffers.emplace_back(dataPtr);
+
+                        for (size_t j = 0; j < arrLen; ++j) {
+                            auto [strLen, strlenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[i + arrMessageLen], data.size() - i});
+                            auto& str  = strings.emplace_back(makeShared<std::string>(std::string_view{rc<const char*>(&data[i + arrMessageLen + strlenLen]), strLen}));
+                            dataPtr[j] = str->c_str();
+                            arrMessageLen += strlenLen + strLen;
+                        }
+                        break;
+                    }
+                    default: {
+                        Debug::log(ERR, "core protocol error: failed demarshaling array message");
+                        errd();
+                        return;
+                    }
+                }
+
+                i += arrMessageLen - 1 /* for loop does ++i*/;
+                break;
             }
             case HW_MESSAGE_MAGIC_TYPE_OBJECT_ID: {
                 Debug::log(ERR, "core protocol error: object type is not impld");
@@ -274,7 +392,6 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
                 return;
             }
         }
-        buffers.emplace_back(buf);
         avalues.emplace_back(buf);
     }
 

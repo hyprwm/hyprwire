@@ -23,6 +23,20 @@
       <arg name="message" type="varchar" summary="message"/>
     </c2s>
 
+    <c2s name="send_message_array">
+      <description summary="Send a text array message">
+            Sends an array message to the server
+      </description>
+      <arg name="message" type="array varchar" summary="message"/>
+    </c2s>
+
+    <c2s name="send_message_array_uint">
+      <description summary="Send an uint array message">
+            Sends an array message to the server
+      </description>
+      <arg name="message" type="array uint" summary="message"/>
+    </c2s>
+
     <c2s name="make_object">
       <description summary="Make a test object">
             Makes a test object

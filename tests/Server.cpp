@@ -17,6 +17,24 @@ static SP<CTestProtocolV1Impl>     spec  = makeShared<CTestProtocolV1Impl>(1, []
 
     manager->sendSendMessage("Hello object");
     manager->setSendMessage([](const char* msg) { std::println("Recvd message: {}", msg); });
+    manager->setSendMessageArray([] (std::vector<const char *> data) {
+        std::string conct = "";
+        for (const auto& d : data) {
+            conct += d + std::string{", "};
+        }
+        conct.pop_back();
+        conct.pop_back();
+        std::println("Got array message: \"{}\"", conct);
+    });
+    manager->setSendMessageArrayUint([] (std::vector<uint32_t> data) {
+        std::string conct = "";
+        for (const auto& d : data) {
+            conct += std::format("{}, ", d);
+        }
+        conct.pop_back();
+        conct.pop_back();
+        std::println("Got uint array message: \"{}\"", conct);
+    });
     manager->setMakeObject([](uint32_t seq) {
         object = makeShared<CMyObjectV1Object>(sock->createObject(manager->getObject()->client(), manager->getObject(), "my_object_v1", seq));
         object->sendSendMessage("Hello object");
