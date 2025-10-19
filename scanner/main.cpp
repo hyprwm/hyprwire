@@ -257,6 +257,7 @@ static bool generateProtocolHeader(const pugi::xml_document& doc) {
 
 #include <hyprwire/core/types/MessageMagic.hpp>
 #include <hyprwire/hyprwire.hpp>
+#include <hyprutils/memory/WeakPtr.hpp>
 #include <vector>
     )#";
 
@@ -399,7 +400,7 @@ class CC{}Object {{
     ~CC{}Object();
 
     Hyprutils::Memory::CSharedPointer<Hyprwire::IObject> getObject() {{
-        return m_object;
+        return m_object.lock();
     }}
 
 )#",
@@ -430,7 +431,7 @@ class CC{}Object {{
 
         HEADER_IMPL += R"#( } m_listeners;
         
-    Hyprutils::Memory::CSharedPointer<Hyprwire::IObject> m_object;
+    Hyprutils::Memory::CWeakPointer<Hyprwire::IObject> m_object;
 };
 )#";
     }
@@ -579,7 +580,7 @@ class C{}Object {{
     ~C{}Object();
 
     Hyprutils::Memory::CSharedPointer<Hyprwire::IObject> getObject() {{
-        return m_object;
+        return m_object.lock();
     }}
 
     void setOnDestroy(std::function<void()>&& fn) {{
@@ -613,7 +614,7 @@ class C{}Object {{
 
         HEADER_IMPL += R"#( } m_listeners;
         
-    Hyprutils::Memory::CSharedPointer<Hyprwire::IObject> m_object;
+    Hyprutils::Memory::CWeakPointer<Hyprwire::IObject> m_object;
 };
 )#";
     }

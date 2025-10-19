@@ -2,6 +2,7 @@
 #include "ClientSocket.hpp"
 #include "../../helpers/Log.hpp"
 #include "../../helpers/FFI.hpp"
+#include "../../Macros.hpp"
 #include "../message/MessageType.hpp"
 #include "../message/MessageParser.hpp"
 #include "../message/messages/GenericProtocolMessage.hpp"
@@ -14,6 +15,10 @@ using namespace Hyprwire;
 
 CClientObject::CClientObject(SP<CClientSocket> client) : m_client(client) {
     ;
+}
+
+CClientObject::~CClientObject() {
+    TRACE(Debug::log(TRACE, "destroying object {}", m_id));
 }
 
 const std::vector<SMethod>& CClientObject::methodsOut() {

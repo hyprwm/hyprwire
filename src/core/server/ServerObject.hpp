@@ -13,7 +13,7 @@ namespace Hyprwire {
     class CServerObject : public IWireObject {
       public:
         CServerObject(SP<CServerClient> client);
-        virtual ~CServerObject() = default;
+        virtual ~CServerObject();
 
         virtual Hyprutils::Memory::CSharedPointer<IServerClient> client();
 

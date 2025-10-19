@@ -15,7 +15,7 @@ namespace Hyprwire {
     class CServerClient : public IServerClient {
       public:
         CServerClient(int fd);
-        virtual ~CServerClient() = default;
+        virtual ~CServerClient();
 
         void                           sendMessage(const SP<IMessage>& message);
         SP<CServerObject>              createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq);

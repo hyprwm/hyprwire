@@ -13,7 +13,7 @@ namespace Hyprwire {
     class CClientObject : public IWireObject {
       public:
         CClientObject(SP<CClientSocket> client);
-        virtual ~CClientObject() = default;
+        virtual ~CClientObject();
 
         virtual const std::vector<SMethod>&                      methodsOut();
         virtual const std::vector<SMethod>&                      methodsIn();

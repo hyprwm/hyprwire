@@ -16,6 +16,8 @@
 using namespace Hyprwire;
 using namespace Hyprutils::Utils;
 
+IWireObject::~IWireObject() = default;
+
 uint32_t IWireObject::call(uint32_t id, ...) {
     const auto METHODS = methodsOut();
     if (METHODS.size() <= id) {

@@ -16,6 +16,10 @@ CServerClient::CServerClient(int fd) : m_fd(fd) {
     ;
 }
 
+CServerClient::~CServerClient() {
+    TRACE(Debug::log(TRACE, "[{}] destroying client", m_fd.get()));
+}
+
 void CServerClient::sendMessage(const SP<IMessage>& message) {
     TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> {}", m_fd.get(), steadyMillis(), message->parseData()));
     write(m_fd.get(), message->m_data.data(), message->m_data.size());

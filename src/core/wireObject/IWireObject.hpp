@@ -13,7 +13,7 @@ namespace Hyprwire {
 
     class IWireObject : public IObject {
       public:
-        virtual ~IWireObject() = default;
+        virtual ~IWireObject();
 
         virtual uint32_t                    call(uint32_t id, ...);
         virtual void                        listen(uint32_t id, void* fn);
