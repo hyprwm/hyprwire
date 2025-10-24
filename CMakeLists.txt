@@ -108,7 +108,7 @@ endfunction()
 
 # tests
 if(BUILD_TESTING)
-  message(STATUS "building tests is disabled")
+  message(STATUS "building tests is enabled")
 
   enable_testing()
   add_custom_target(tests)
