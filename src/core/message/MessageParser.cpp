@@ -224,7 +224,7 @@ std::pair<size_t, size_t> CMessageParser::parseVarInt(const std::span<const uint
     const auto LEN     = data.size();
     do {
         rolling += ((sc<uint8_t>(data[i] << 1) >> 1) << (i++ * 7));
-    } while (i < LEN && data[i] & 0x80);
+    } while (i < LEN && (data[i - 1] & 0x80));
 
     return {rolling, i};
 }

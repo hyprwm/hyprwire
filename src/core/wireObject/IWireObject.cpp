@@ -101,7 +101,7 @@ uint32_t IWireObject::call(uint32_t id, ...) {
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                 data.emplace_back(HW_MESSAGE_MAGIC_TYPE_VARCHAR);
                 auto str = va_arg(va, const char*);
-                data.append_range(g_messageParser->encodeVarInt(std::strlen(str)));
+                data.append_range(g_messageParser->encodeVarInt(std::string_view(str).size()));
                 data.append_range(std::string_view(str));
                 break;
             }
@@ -129,7 +129,7 @@ uint32_t IWireObject::call(uint32_t id, ...) {
                     case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                         for (size_t i = 0; i < arrayLen; ++i) {
                             const char* element = rc<const char**>(arrayData)[i];
-                            data.append_range(g_messageParser->encodeVarInt(std::strlen(element)));
+                            data.append_range(g_messageParser->encodeVarInt(std::string_view(element).size()));
                             data.append_range(std::string_view(element));
                         }
                         break;
