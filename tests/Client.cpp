@@ -44,6 +44,7 @@ int                                main(int argc, char** argv, char** envp) {
     object = makeShared<CCMyObjectV1Object>(manager->sendMakeObject());
     object->setSendMessage([](const char* msg) { std::println("Server says on object {}", msg); });
     object->sendSendMessage("Hello on object");
+    object->sendSendEnum(TEST_PROTOCOL_V1_MY_ENUM_WORLD);
 
     std::println("Sent hello!");
 

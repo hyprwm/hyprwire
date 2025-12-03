@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <vector>
 #include <cstdint>
+#include <ranges>
+#include <algorithm>
 
 #include <pugixml.hpp>
 
@@ -13,6 +15,7 @@ struct SRequestArgument {
     std::string             interface;
     std::string             name;
     bool                    allowNull = false;
+    bool                    isEnum    = false;
 };
 
 struct SMethodSpec {
@@ -31,14 +34,28 @@ struct SObjectSpec {
     int                      version = 1;
 };
 
+struct SEnumSpec {
+    std::string                                   interface, nameCamel;
+    std::vector<std::pair<uint32_t, std::string>> entries;
+};
+
 static std::vector<SObjectSpec> OBJECT_SPECS;
+static std::vector<SEnumSpec>   ENUM_SPECS;
 
 static bool                     clientCode = false;
 
 static std::string              HEADER_PROTOCOL, HEADER_IMPL;
 static std::string              SOURCE;
 
-static std::string              camelize(std::string snake) {
+static struct {
+    std::string name;
+    std::string nameOriginal;
+    std::string fileName;
+    uint32_t    version = 1;
+} PROTO_DATA;
+
+//
+static std::string camelize(std::string snake) {
     std::string result = "";
     for (size_t i = 0; i < snake.length(); ++i) {
         if (snake[i] == '_' && i != 0 && i + 1 < snake.length() && snake[i + 1] != '_') {
@@ -60,10 +77,19 @@ static std::string capitalize(std::string str) {
     return str;
 }
 
+static std::string uppercase(std::string str) {
+    if (str.empty())
+        return "";
+    std::ranges::transform(str, str.begin(), ::toupper);
+    return str;
+}
+
 static Hyprwire::eMessageMagic strToMagic(const std::string_view& sv) {
     if (sv == "varchar")
         return Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR;
     if (sv == "uint")
+        return Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT;
+    if (sv == "enum")
         return Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT;
     if (sv == "int")
         return Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT;
@@ -100,7 +126,12 @@ static std::string argToC(Hyprwire::eMessageMagic m) {
 static std::string argToC(const SRequestArgument& arg) {
     switch (arg.magic) {
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_VARCHAR: return "const char*";
-        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT: return "uint32_t";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT: {
+            if (!arg.isEnum)
+                return "uint32_t";
+
+            return camelize(PROTO_DATA.nameOriginal + "_" + arg.interface);
+        }
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT: return "int32_t";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32: return "float";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY: return "std::vector<" + argToC(arg.arrType) + ">";
@@ -159,14 +190,24 @@ static std::string argsToC(const std::vector<SRequestArgument>& args, bool noNam
     return cstr;
 }
 
-static struct {
-    std::string name;
-    std::string nameOriginal;
-    std::string fileName;
-    uint32_t    version = 1;
-} PROTO_DATA;
-
 static bool scanProtocol(const pugi::xml_document& doc) {
+
+    for (const auto& c : doc.child("protocol").children()) {
+        if (c.name() != std::string_view{"enum"})
+            continue;
+
+        const auto& object = c;
+
+        SEnumSpec   spec;
+        spec.interface = PROTO_DATA.nameOriginal + "_" + object.attribute("name").as_string();
+        spec.nameCamel = camelize(spec.interface);
+
+        for (const auto& c : object.children()) {
+            spec.entries.emplace_back(std::make_pair<>(c.attribute("idx").as_int(), c.attribute("name").as_string()));
+        }
+
+        ENUM_SPECS.emplace_back(std::move(spec));
+    }
 
     for (const auto& c : doc.child("protocol").children()) {
         if (c.name() != std::string_view{"object"})
@@ -227,8 +268,10 @@ static bool scanProtocol(const pugi::xml_document& doc) {
                 if (param.name() == std::string_view{"arg"}) {
                     auto& a = method.args.emplace_back(SRequestArgument{
                         .magic     = strToMagic(param.attribute("type").as_string()),
+                        .interface = param.attribute("interface").as_string(""),
                         .name      = param.attribute("name").as_string(),
                         .allowNull = param.attribute("allow_null").as_bool(),
+                        .isEnum    = param.attribute("type").as_string() == std::string_view{"enum"},
                     });
                     if (a.magic == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY)
                         a.arrType = strToMagic(std::string{param.attribute("type").as_string()}.substr(6));
@@ -260,6 +303,19 @@ static bool generateProtocolHeader(const pugi::xml_document& doc) {
 #include <hyprutils/memory/WeakPtr.hpp>
 #include <vector>
     )#";
+
+    // begin enums
+
+    for (const auto& ENUM : ENUM_SPECS) {
+        HEADER_PROTOCOL += std::format(R"#(
+enum {} : uint32_t {{
+)#",
+                                       ENUM.nameCamel);
+        for (const auto& [id, name] : ENUM.entries) {
+            HEADER_PROTOCOL += std::format("\t{} = {},\n", uppercase(ENUM.interface + "_" + name), id);
+        }
+        HEADER_PROTOCOL += "};\n";
+    }
 
     // begin objects
 
