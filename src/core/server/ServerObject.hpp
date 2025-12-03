@@ -20,10 +20,11 @@ namespace Hyprwire {
         virtual const std::vector<SMethod>&                      methodsOut();
         virtual const std::vector<SMethod>&                      methodsIn();
         virtual void                                             errd();
-        virtual void                                             sendMessage(SP<CGenericProtocolMessage>);
+        virtual void                                             sendMessage(const IMessage&);
         virtual Hyprutils::Memory::CSharedPointer<IObject>       self();
         virtual Hyprutils::Memory::CSharedPointer<IServerSocket> serverSock();
         virtual bool                                             server();
+        virtual void                                             error(uint32_t id, const std::string_view& message);
 
         WP<CServerClient>                                        m_client;
     };

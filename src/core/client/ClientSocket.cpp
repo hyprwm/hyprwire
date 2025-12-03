@@ -60,7 +60,7 @@ bool CClientSocket::attempt(const std::string& path) {
     }};
 
     // send hello instantly
-    sendMessage(makeShared<CHelloMessage>());
+    sendMessage(CHelloMessage());
 
     return true;
 }
@@ -73,6 +73,9 @@ constexpr const size_t HANDSHAKE_MAX_MS = 5000;
 
 //
 bool CClientSocket::dispatchEvents(bool block) {
+
+    if (m_error)
+        return false;
 
     if (!m_handshakeDone) {
         const auto MAX_MS =
@@ -118,9 +121,9 @@ bool CClientSocket::dispatchEvents(bool block) {
     return !m_error;
 }
 
-void CClientSocket::sendMessage(const SP<IMessage>& message) {
-    TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> {}", m_fd.get(), steadyMillis(), message->parseData()));
-    write(m_fd.get(), message->m_data.data(), message->m_data.size());
+void CClientSocket::sendMessage(const IMessage& message) {
+    TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> {}", m_fd.get(), steadyMillis(), message.parseData()));
+    write(m_fd.get(), message.m_data.data(), message.m_data.size());
 }
 
 int CClientSocket::extractLoopFD() {
@@ -181,7 +184,7 @@ SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec, uint32_t 
     object->m_protocolName = spec->specName();
     m_objects.emplace_back(object);
 
-    auto bindMessage = makeShared<CBindProtocolMessage>(spec->specName(), object->m_seq, 1);
+    auto bindMessage = CBindProtocolMessage(spec->specName(), object->m_seq, 1);
     sendMessage(bindMessage);
 
     waitForObject(object);
@@ -218,15 +221,15 @@ SP<CClientObject> CClientSocket::makeObject(const std::string& protocolName, con
 }
 
 void CClientSocket::waitForObject(SP<CClientObject> x) {
-    while (!x->m_id) {
+    while (!x->m_id && !m_error) {
         dispatchEvents(true);
     }
 }
 
-void CClientSocket::onGeneric(SP<CGenericProtocolMessage> msg) {
+void CClientSocket::onGeneric(const CGenericProtocolMessage& msg) {
     for (const auto& o : m_objects) {
-        if (o->m_id == msg->m_object) {
-            o->called(msg->m_method, msg->m_dataSpan);
+        if (o->m_id == msg.m_object) {
+            o->called(msg.m_method, msg.m_dataSpan);
             break;
         }
     }

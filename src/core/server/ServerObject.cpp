@@ -6,6 +6,7 @@
 #include "../message/MessageType.hpp"
 #include "../message/MessageParser.hpp"
 #include "../message/messages/GenericProtocolMessage.hpp"
+#include "../message/messages/FatalProtocolError.hpp"
 #include <hyprwire/core/types/MessageMagic.hpp>
 
 #include <cstdarg>
@@ -35,7 +36,7 @@ void CServerObject::errd() {
         m_client->m_error = true;
 }
 
-void CServerObject::sendMessage(SP<CGenericProtocolMessage> msg) {
+void CServerObject::sendMessage(const IMessage& msg) {
     if (m_client)
         m_client->sendMessage(msg);
 }
@@ -56,4 +57,10 @@ SP<IServerSocket> CServerObject::serverSock() {
     if (!m_client || !m_client->m_server)
         return nullptr;
     return m_client->m_server.lock();
+}
+
+void CServerObject::error(uint32_t id, const std::string_view& message) {
+    CFatalErrorMessage msg(m_self.lock(), id, message);
+    m_client->sendMessage(msg);
+    errd();
 }

@@ -17,10 +17,10 @@ namespace Hyprwire {
         CServerClient(int fd);
         virtual ~CServerClient();
 
-        void                           sendMessage(const SP<IMessage>& message);
+        void                           sendMessage(const IMessage& message);
         SP<CServerObject>              createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq);
         void                           onBind(SP<CServerObject> obj);
-        void                           onGeneric(SP<CGenericProtocolMessage> msg);
+        void                           onGeneric(const CGenericProtocolMessage& msg);
 
         Hyprutils::OS::CFileDescriptor m_fd;
 

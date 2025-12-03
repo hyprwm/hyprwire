@@ -32,3 +32,7 @@ void* IObject::getData() {
 void IObject::setOnDestroy(std::function<void()>&& fn) {
     m_onDestroy = std::move(fn);
 }
+
+void IObject::error(uint32_t id, const std::string_view& message) {
+    ;
+}

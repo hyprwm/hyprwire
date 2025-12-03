@@ -643,6 +643,10 @@ class C{}Object {{
         m_object->setOnDestroy(std::move(fn));
     }}
 
+    void error(uint32_t code, const std::string_view& sv) {{
+        m_object->error(code, sv);
+    }}
+
 )#",
                                    capitalize(o.nameCamel), capitalize(o.nameCamel), capitalize(o.nameCamel));
 

@@ -17,6 +17,6 @@ namespace Hyprwire {
         eMessageType         m_type = HW_MESSAGE_TYPE_INVALID;
         size_t               m_len  = 0;
 
-        std::string          parseData();
+        std::string          parseData() const;
     };
 };

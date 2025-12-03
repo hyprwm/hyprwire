@@ -40,7 +40,13 @@ static SP<CTestProtocolV1Impl>     spec  = makeShared<CTestProtocolV1Impl>(1, []
         object = makeShared<CMyObjectV1Object>(sock->createObject(manager->getObject()->client(), manager->getObject(), "my_object_v1", seq));
         object->sendSendMessage("Hello object");
         object->setSendMessage([](const char* msg) { std::println("Object says hello"); });
-        object->setSendEnum([](testProtocolV1MyEnum e) { std::println("Object sent enum: {}", sc<uint32_t>(e)); });
+        object->setSendEnum([](testProtocolV1MyEnum e) {
+            std::println("Object sent enum: {}", sc<uint32_t>(e));
+
+            std::println("Erroring out the client!");
+
+            object->error(TEST_PROTOCOL_V1_MY_ERROR_ENUM_ERROR_IMPORTANT, "Important error occurred!");
+        });
     });
     manager->setOnDestroy([w = WP<CMyManagerV1Object>{manager}]() { //
         std::println("object {:x} destroyed", (uintptr_t)manager.get());

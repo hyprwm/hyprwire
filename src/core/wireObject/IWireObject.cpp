@@ -150,7 +150,7 @@ uint32_t IWireObject::call(uint32_t id, ...) {
 
     data.emplace_back(HW_MESSAGE_MAGIC_END);
 
-    auto msg = makeShared<CGenericProtocolMessage>(std::move(data));
+    auto msg = CGenericProtocolMessage(std::move(data));
     sendMessage(msg);
 
     if (waitOnSeq) {

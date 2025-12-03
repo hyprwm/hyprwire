@@ -20,9 +20,9 @@ CServerClient::~CServerClient() {
     TRACE(Debug::log(TRACE, "[{}] destroying client", m_fd.get()));
 }
 
-void CServerClient::sendMessage(const SP<IMessage>& message) {
-    TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> {}", m_fd.get(), steadyMillis(), message->parseData()));
-    write(m_fd.get(), message->m_data.data(), message->m_data.size());
+void CServerClient::sendMessage(const IMessage& message) {
+    TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> {}", m_fd.get(), steadyMillis(), message.parseData()));
+    write(m_fd.get(), message.m_data.data(), message.m_data.size());
 }
 
 SP<CServerObject> CServerClient::createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq) {
@@ -68,7 +68,7 @@ SP<CServerObject> CServerClient::createObject(const std::string& protocol, const
         return nullptr;
     }
 
-    auto ret = makeShared<CNewObjectMessage>(seq, obj->m_id);
+    auto ret = CNewObjectMessage(seq, obj->m_id);
     sendMessage(ret);
 
     onBind(obj);
@@ -94,10 +94,10 @@ void CServerClient::onBind(SP<CServerObject> obj) {
     }
 }
 
-void CServerClient::onGeneric(SP<CGenericProtocolMessage> msg) {
+void CServerClient::onGeneric(const CGenericProtocolMessage& msg) {
     for (const auto& o : m_objects) {
-        if (o->m_id == msg->m_object) {
-            o->called(msg->m_method, msg->m_dataSpan);
+        if (o->m_id == msg.m_object) {
+            o->called(msg.m_method, msg.m_dataSpan);
             break;
         }
     }

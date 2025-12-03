@@ -34,7 +34,7 @@ void CClientObject::errd() {
         m_client->m_error = true;
 }
 
-void CClientObject::sendMessage(SP<CGenericProtocolMessage> msg) {
+void CClientObject::sendMessage(const IMessage& msg) {
     if (m_client)
         m_client->sendMessage(msg);
 }

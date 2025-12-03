@@ -9,19 +9,19 @@
 
 using namespace Hyprwire;
 
-static std::pair<std::string, size_t> formatPrimitiveType(const std::span<uint8_t>& s, eMessageMagic type) {
+static std::pair<std::string, size_t> formatPrimitiveType(const std::span<const uint8_t>& s, eMessageMagic type) {
     switch (type) {
         case HW_MESSAGE_MAGIC_TYPE_UINT: {
-            return {std::format("{}", *rc<uint32_t*>(&s[0])), 4};
+            return {std::format("{}", *rc<const uint32_t*>(&s[0])), 4};
         }
         case HW_MESSAGE_MAGIC_TYPE_INT: {
-            return {std::format("{}", *rc<int32_t*>(&s[0])), 4};
+            return {std::format("{}", *rc<const int32_t*>(&s[0])), 4};
         }
         case HW_MESSAGE_MAGIC_TYPE_F32: {
-            return {std::format("{}", *rc<float*>(&s[0])), 4};
+            return {std::format("{}", *rc<const float*>(&s[0])), 4};
         }
         case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
-            auto id = *rc<uint32_t*>(&s[0]);
+            auto id = *rc<const uint32_t*>(&s[0]);
             return {std::format("object: {}", id == 0 ? "null" : std::to_string(id)), 4};
         }
         case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
@@ -34,7 +34,7 @@ static std::pair<std::string, size_t> formatPrimitiveType(const std::span<uint8_
     return {"", 0};
 }
 
-std::string IMessage::parseData() {
+std::string IMessage::parseData() const {
     std::string result;
     result += messageTypeToStr(m_type);
     result += " ( ";
@@ -46,22 +46,22 @@ std::string IMessage::parseData() {
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_SEQ: {
-                result += std::format("seq: {}", *rc<uint32_t*>(&m_data.at(needle)));
+                result += std::format("seq: {}", *rc<const uint32_t*>(&m_data.at(needle)));
                 needle += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_UINT: {
-                result += std::format("{}", *rc<uint32_t*>(&m_data.at(needle)));
+                result += std::format("{}", *rc<const uint32_t*>(&m_data.at(needle)));
                 needle += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_INT: {
-                result += std::format("{}", *rc<int32_t*>(&m_data.at(needle)));
+                result += std::format("{}", *rc<const int32_t*>(&m_data.at(needle)));
                 needle += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_F32: {
-                result += std::format("{}", *rc<float*>(&m_data.at(needle)));
+                result += std::format("{}", *rc<const float*>(&m_data.at(needle)));
                 needle += 4;
                 break;
             }
@@ -79,7 +79,7 @@ std::string IMessage::parseData() {
                 needle += intLen;
 
                 for (size_t i = 0; i < els; ++i) {
-                    auto [str, len] = formatPrimitiveType(std::span<uint8_t>{&m_data[needle], m_data.size() - needle}, thisType);
+                    auto [str, len] = formatPrimitiveType(std::span<const uint8_t>{&m_data[needle], m_data.size() - needle}, thisType);
 
                     needle += len;
 
@@ -94,7 +94,7 @@ std::string IMessage::parseData() {
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
-                auto id = *rc<uint32_t*>(&m_data.at(needle));
+                auto id = *rc<const uint32_t*>(&m_data.at(needle));
                 needle += 4;
                 result += std::format("object({})", id);
                 break;

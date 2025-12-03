@@ -43,6 +43,12 @@ namespace Hyprwire {
         HW_MESSAGE_TYPE_NEW_OBJECT = 11,
 
         /*
+            Sent by the server to indicate a fatal protocol error
+            Params: uint -> object handle ID, uint -> error idx, varchar -> error message
+        */
+        HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR = 12,
+
+        /*
             Generic protocol message. Can be either direction.
             Params: uint -> object handle ID, uint -> method ID, data...
         */
@@ -58,6 +64,7 @@ namespace Hyprwire {
             case HW_MESSAGE_TYPE_HANDSHAKE_PROTOCOLS: return "HANDSHAKE_PROTOCOLS";
             case HW_MESSAGE_TYPE_BIND_PROTOCOL: return "BIND_PROTOCOL";
             case HW_MESSAGE_TYPE_NEW_OBJECT: return "NEW_OBJECT";
+            case HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR: return "HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR";
             case HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE: return "GENERIC_PROTOCOL_MESSAGE";
         }
         return "ERROR";

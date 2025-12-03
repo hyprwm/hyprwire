@@ -25,6 +25,7 @@ namespace Hyprwire {
         // only for server objects
         virtual Hyprutils::Memory::CSharedPointer<IServerSocket> serverSock();
         virtual Hyprutils::Memory::CSharedPointer<IServerClient> client() = 0;
+        virtual void                                             error(uint32_t id, const std::string_view& message);
 
         // only for client objects
         virtual Hyprutils::Memory::CSharedPointer<IClientSocket> clientSock();
