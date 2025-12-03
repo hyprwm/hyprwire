@@ -63,7 +63,7 @@ target_include_directories(
   PUBLIC "./include"
   PRIVATE "./src" "${CMAKE_BINARY_DIR}")
 set_target_properties(hyprwire PROPERTIES VERSION ${HYPRWIRE_VERSION} SOVERSION
-                                                                      1)
+                                                                      2)
 target_link_libraries(hyprwire PkgConfig::deps)
 
 check_include_file("sys/timerfd.h" HAS_TIMERFD)
