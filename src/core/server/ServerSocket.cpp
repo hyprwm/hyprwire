@@ -187,7 +187,8 @@ bool CServerSocket::dispatchNewConnections() {
 }
 
 bool CServerSocket::dispatchExistingConnections() {
-    bool hadAny = false;
+    bool hadAny           = false;
+    bool needsPollRecheck = false;
 
     for (size_t i = INTERNAL_FDS; i < m_pollfds.size(); ++i) {
         if (!(m_pollfds.at(i).revents & POLLIN))
@@ -199,6 +200,7 @@ bool CServerSocket::dispatchExistingConnections() {
 
         if (m_pollfds.at(i).revents & POLLHUP) {
             m_clients.at(i - INTERNAL_FDS)->m_error = true;
+            needsPollRecheck                        = true;
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (hangup)", m_clients.at(i - INTERNAL_FDS)->m_fd.get(), steadyMillis()));
             continue;
         }
@@ -207,7 +209,10 @@ bool CServerSocket::dispatchExistingConnections() {
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - INTERNAL_FDS)->m_fd.get(), steadyMillis()));
     }
 
-    std::erase_if(m_clients, [](const auto& c) { return c->m_error; });
+    if (needsPollRecheck) {
+        std::erase_if(m_clients, [](const auto& c) { return c->m_error; });
+        recheckPollFds();
+    }
 
     return hadAny;
 }
