@@ -5,6 +5,7 @@
 #include "../client/ClientObject.hpp"
 #include "../message/MessageType.hpp"
 #include "../message/MessageParser.hpp"
+#include "../message/MessageMagic.hpp"
 #include "../message/messages/GenericProtocolMessage.hpp"
 #include <hyprwire/core/types/MessageMagic.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
@@ -21,8 +22,9 @@ IWireObject::~IWireObject() = default;
 uint32_t IWireObject::call(uint32_t id, ...) {
     const auto METHODS = methodsOut();
     if (METHODS.size() <= id) {
-        Debug::log(ERR, "core protocol error: invalid method {} for object {}", id, m_id);
-        errd();
+        const auto MSG = std::format("core protocol error: invalid method {} for object {}", id, m_id);
+        Debug::log(ERR, "core protocol error: {}", MSG);
+        error(m_id, MSG);
         return 0;
     }
 
@@ -33,14 +35,16 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     const auto  params = method.params;
 
     if (method.since > m_version) {
-        Debug::log(ERR, "core protocol error: method {} since {} but has {}", id, method.since, m_version);
-        errd();
+        const auto MSG = std::format("method {} since {} but has {}", id, method.since, m_version);
+        Debug::log(ERR, "core protocol error: {}", MSG);
+        error(m_id, MSG);
         return 0;
     }
 
     if (!method.returnsType.empty() && server()) {
-        Debug::log(ERR, "core protocol error: invalid method spec {} for object {} -> server cannot call returnsType methods", id, m_id);
-        errd();
+        const auto MSG = std::format("invalid method spec {} for object {} -> server cannot call returnsType methods", id, m_id);
+        Debug::log(ERR, "core protocol error: {}", MSG);
+        error(m_id, MSG);
         return 0;
     }
 
@@ -174,8 +178,9 @@ void IWireObject::listen(uint32_t id, void* fn) {
 void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
     const auto METHODS = methodsIn();
     if (METHODS.size() <= id) {
-        Debug::log(ERR, "core protocol error: invalid method {} for object {}", id, m_id);
-        errd();
+        const auto MSG = std::format("invalid method {} for object {}", id, m_id);
+        Debug::log(ERR, "core protocol error: {}", MSG);
+        error(m_id, MSG);
         return;
     }
 
@@ -186,8 +191,9 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
     const auto  params = method.params;
 
     if (method.since > m_version) {
-        Debug::log(ERR, "core protocol error: method {} since {} but has {}", id, method.since, m_version);
-        errd();
+        const auto MSG = std::format("method {} since {} but has {}", id, method.since, m_version);
+        Debug::log(ERR, "core protocol error: {}", MSG);
+        error(m_id, MSG);
         return;
     }
 
@@ -196,8 +202,18 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
         ffiTypes.emplace_back(&ffi_type_uint32);
     size_t dataI = 0;
     for (size_t i = 0; i < params.size(); ++i) {
-        const auto PARAM   = sc<eMessageMagic>(params.at(i));
-        auto       ffiType = FFI::ffiTypeFrom(PARAM);
+        const auto PARAM      = sc<eMessageMagic>(params.at(i));
+        const auto WIRE_PARAM = sc<eMessageMagic>(data[dataI]);
+
+        if (PARAM != WIRE_PARAM) {
+            // raise protocol error
+            const auto MSG = std::format("method {} param idx {} should be {} but was {}", id, i, magicToString(PARAM), magicToString(WIRE_PARAM));
+            Debug::log(ERR, "core protocol error: {}", MSG);
+            error(m_id, MSG);
+            return;
+        }
+
+        auto ffiType = FFI::ffiTypeFrom(PARAM);
         ffiTypes.emplace_back(ffiType);
 
         switch (PARAM) {
@@ -206,14 +222,24 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
             case HW_MESSAGE_MAGIC_TYPE_F32:
             case HW_MESSAGE_MAGIC_TYPE_INT:
             case HW_MESSAGE_MAGIC_TYPE_OBJECT:
-            case HW_MESSAGE_MAGIC_TYPE_SEQ: dataI += 4; break;
+            case HW_MESSAGE_MAGIC_TYPE_SEQ: dataI += 5; break;
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                 auto [a, b] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI], data.size() - dataI});
                 dataI += a + b + 1;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
-                const auto arrType    = sc<eMessageMagic>(params.at(++i));
+                const auto arrType  = sc<eMessageMagic>(params.at(++i));
+                const auto wireType = sc<eMessageMagic>(data[dataI + 1]);
+
+                if (arrType != wireType) {
+                    // raise protocol error
+                    const auto MSG = std::format("method {} param idx {} should be {} but was {}", id, i, magicToString(PARAM), magicToString(WIRE_PARAM));
+                    Debug::log(ERR, "core protocol error: {}", MSG);
+                    error(m_id, MSG);
+                    return;
+                }
+
                 auto [arrLen, lenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI + 2], data.size() - i});
                 size_t arrMessageLen  = 2 + lenLen;
 
@@ -231,8 +257,9 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
                     case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                         for (size_t j = 0; j < arrLen; ++j) {
                             if (dataI + arrMessageLen > data.size()) {
-                                Debug::log(ERR, "core protocol error: failed demarshaling array message");
-                                errd();
+                                const auto MSG = std::format("failed demarshaling array message");
+                                Debug::log(ERR, "core protocol error: {}", MSG);
+                                error(m_id, MSG);
                                 return;
                             }
                             auto [strLen, strlenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI + arrMessageLen], data.size() - dataI - arrMessageLen});
@@ -241,8 +268,9 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
                         break;
                     }
                     default: {
-                        Debug::log(ERR, "core protocol error: failed demarshaling array message");
-                        errd();
+                        const auto MSG = std::format("failed demarshaling array message");
+                        Debug::log(ERR, "core protocol error: {}", MSG);
+                        error(m_id, MSG);
                         return;
                     }
                 }
@@ -251,8 +279,9 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_OBJECT_ID: {
-                Debug::log(ERR, "core protocol error: object type is not impld");
-                errd();
+                const auto MSG = std::format("object type is not impld");
+                Debug::log(ERR, "core protocol error: {}", MSG);
+                error(m_id, MSG);
                 return;
             }
         }
@@ -379,8 +408,9 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
                         break;
                     }
                     default: {
-                        Debug::log(ERR, "core protocol error: failed demarshaling array message");
-                        errd();
+                        const auto MSG = std::format("failed demarshaling array message");
+                        Debug::log(ERR, "core protocol error: {}", MSG);
+                        error(m_id, MSG);
                         return;
                     }
                 }
@@ -389,8 +419,9 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_OBJECT_ID: {
-                Debug::log(ERR, "core protocol error: object type is not impld");
-                errd();
+                const auto MSG = std::format("object type is not impld");
+                Debug::log(ERR, "core protocol error: {}", MSG);
+                error(m_id, MSG);
                 return;
             }
         }

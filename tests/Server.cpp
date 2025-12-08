@@ -39,7 +39,7 @@ static SP<CTestProtocolV1Impl>     spec  = makeShared<CTestProtocolV1Impl>(1, []
     manager->setMakeObject([](uint32_t seq) {
         object = makeShared<CMyObjectV1Object>(sock->createObject(manager->getObject()->client(), manager->getObject(), "my_object_v1", seq));
         object->sendSendMessage("Hello object");
-        object->setSendMessage([](const char* msg) { std::println("Object says hello"); });
+        object->setSendMessage([](const char* msg) { std::println("Object says hello: {}", msg); });
         object->setSendEnum([](testProtocolV1MyEnum e) {
             std::println("Object sent enum: {}", sc<uint32_t>(e));
 
