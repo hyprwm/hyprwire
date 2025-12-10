@@ -20,6 +20,9 @@ namespace Hyprwire {
 
         static Hyprutils::Memory::CSharedPointer<IServerSocket> open(const std::string& path);
 
+        // IServerSocket takes ownership of the fd.
+        static Hyprutils::Memory::CSharedPointer<IServerSocket> open(const int fd);
+
         /*
             Add an implementation to the socket
         */

@@ -19,8 +19,20 @@ using namespace Hyprutils::Utils;
 
 SP<IServerSocket> IServerSocket::open(const std::string& path) {
     SP<CServerSocket> sock = makeShared<CServerSocket>();
+
     if (!sock->attempt(path))
         return nullptr;
+
+    sock->m_self = sock;
+    return sock;
+}
+
+SP<IServerSocket> IServerSocket::open(const int fd) {
+    SP<CServerSocket> sock = makeShared<CServerSocket>();
+
+    if (!sock->attemptFromFd(fd))
+        return nullptr;
+
     sock->m_self = sock;
     return sock;
 }
@@ -92,6 +104,20 @@ bool CServerSocket::attempt(const std::string& path) {
     return true;
 }
 
+bool CServerSocket::attemptFromFd(const int fd) {
+
+    auto x      = m_clients.emplace_back(makeShared<CServerClient>(fd));
+    x->m_server = m_self;
+    x->m_self   = x;
+
+    m_success      = true;
+    m_isFdListener = true;
+
+    recheckPollFds();
+
+    return true;
+}
+
 void CServerSocket::addImplementation(SP<IProtocolServerImplementation>&& x) {
     m_impls.emplace_back(std::move(x));
 }
@@ -152,10 +178,13 @@ constexpr const size_t INTERNAL_FDS = 2;
 //
 void CServerSocket::recheckPollFds() {
     m_pollfds.clear();
-    m_pollfds.emplace_back(pollfd{
-        .fd     = m_fd.get(),
-        .events = POLLIN,
-    });
+
+    if (!m_isFdListener) {
+        m_pollfds.emplace_back(pollfd{
+            .fd     = m_fd.get(),
+            .events = POLLIN,
+        });
+    }
 
     m_pollfds.emplace_back(pollfd{
         .fd     = m_exitFd.get(),
@@ -262,10 +291,12 @@ int CServerSocket::extractLoopFD() {
                 m_pollmtx.lock();
 
                 std::vector<pollfd> pollfds;
-                pollfds.emplace_back(pollfd{
-                    .fd     = m_fd.get(),
-                    .events = POLLIN,
-                });
+                if (!m_isFdListener) {
+                    pollfds.emplace_back(pollfd{
+                        .fd     = m_fd.get(),
+                        .events = POLLIN,
+                    });
+                }
 
                 for (const auto& c : m_clients) {
                     pollfds.emplace_back(pollfd{

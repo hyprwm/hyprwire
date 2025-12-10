@@ -28,8 +28,20 @@ using namespace Hyprutils::Utils;
 
 SP<IClientSocket> IClientSocket::open(const std::string& path) {
     SP<CClientSocket> sock = makeShared<CClientSocket>();
+
     if (!sock->attempt(path))
         return nullptr;
+
+    sock->m_self = sock;
+    return sock;
+}
+
+SP<IClientSocket> IClientSocket::open(const int fd) {
+    SP<CClientSocket> sock = makeShared<CClientSocket>();
+
+    if (!sock->attemptFromFd(fd))
+        return nullptr;
+
     sock->m_self = sock;
     return sock;
 }
@@ -51,6 +63,22 @@ bool CClientSocket::attempt(const std::string& path) {
         Debug::log(ERR, "err: {}", errno);
         return false;
     }
+
+    m_fd.setFlags(O_NONBLOCK);
+
+    m_pollfds = {pollfd{
+        .fd     = m_fd.get(),
+        .events = POLLIN,
+    }};
+
+    // send hello instantly
+    sendMessage(CHelloMessage());
+
+    return true;
+}
+
+bool CClientSocket::attemptFromFd(const int fd) {
+    m_fd = CFileDescriptor{fd};
 
     m_fd.setFlags(O_NONBLOCK);
 

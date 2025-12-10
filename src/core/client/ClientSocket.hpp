@@ -18,6 +18,7 @@ namespace Hyprwire {
         virtual ~CClientSocket() = default;
 
         bool                                           attempt(const std::string& path);
+        bool                                           attemptFromFd(const int fd);
 
         virtual void                                   addImplementation(SP<IProtocolClientImplementation>&&);
         virtual bool                                   dispatchEvents(bool block);

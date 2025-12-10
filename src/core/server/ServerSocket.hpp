@@ -17,6 +17,7 @@ namespace Hyprwire {
         virtual ~CServerSocket();
 
         bool                                           attempt(const std::string& path);
+        bool                                           attemptFromFd(const int fd);
 
         virtual void                                   addImplementation(SP<IProtocolServerImplementation>&&);
         virtual bool                                   dispatchEvents(bool block);
@@ -45,7 +46,8 @@ namespace Hyprwire {
         std::thread                                    m_pollThread;
         std::mutex                                     m_pollmtx;
 
-        bool                                           m_success = false;
+        bool                                           m_success      = false;
+        bool                                           m_isFdListener = false;
         std::string                                    m_path;
     };
 };
