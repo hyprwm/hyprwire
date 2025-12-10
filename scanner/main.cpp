@@ -379,7 +379,7 @@ Hyprwire::SMethod{{
 
             std::string argArrayStr;
             for (const auto& p : m.args) {
-                argArrayStr += magicToString(p.magic) + ", ";
+                argArrayStr += magicToString(p.magic, p.arrType) + ", ";
             }
 
             if (!argArrayStr.empty())

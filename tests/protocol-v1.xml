@@ -44,6 +44,13 @@
       <arg name="message" type="array uint" summary="message"/>
     </c2s>
 
+    <s2c name="recv_message_array_uint">
+      <description summary="Receive an uint array message">
+            Receives an array message to the server
+      </description>
+      <arg name="message" type="array uint" summary="message"/>
+    </s2c>
+
     <c2s name="make_object">
       <description summary="Make a test object">
             Makes a test object
