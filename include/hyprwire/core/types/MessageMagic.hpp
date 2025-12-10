@@ -36,5 +36,12 @@ namespace Hyprwire {
             [magic : 1B][id : UINT][name_len : VLQ][object name ...]
         */
         HW_MESSAGE_MAGIC_TYPE_OBJECT = 0x22,
+
+        /*
+            Special types
+        */
+
+        // FD has size 0. It's passed via control.
+        HW_MESSAGE_MAGIC_TYPE_FD = 0x40,
     };
 };

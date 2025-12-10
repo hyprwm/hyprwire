@@ -5,6 +5,8 @@
 #include "../../helpers/Log.hpp"
 #include "../../Macros.hpp"
 #include "../message/MessageParser.hpp"
+#include "../message/messages/FatalProtocolError.hpp"
+#include "../socket/SocketHelpers.hpp"
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -247,26 +249,24 @@ bool CServerSocket::dispatchExistingConnections() {
 }
 
 void CServerSocket::dispatchClient(SP<CServerClient> client) {
-    std::vector<uint8_t> data;
-    constexpr size_t     BUFFER_SIZE         = 8192;
-    uint8_t              buffer[BUFFER_SIZE] = {0};
+    auto data = parseFromFd(client->m_fd);
 
-    ssize_t              sizeWritten = read(client->m_fd.get(), buffer, BUFFER_SIZE);
-
-    if (sizeWritten <= 0)
+    if (data.bad) {
+        client->sendMessage(CFatalErrorMessage(nullptr, -1, "fatal: invalid message on wire"));
+        client->m_error = true;
         return;
-
-    data.append_range(std::span<uint8_t>(buffer, sizeWritten));
-
-    while (sizeWritten == BUFFER_SIZE) {
-        sizeWritten = read(client->m_fd.get(), buffer, BUFFER_SIZE);
-        if (sizeWritten < 0)
-            return;
-
-        data.append_range(std::span<uint8_t>(buffer, sizeWritten));
     }
 
-    g_messageParser->handleMessage(data, client);
+    if (data.data.empty()) // this should NOT happen
+        return;
+
+    const auto RET = g_messageParser->handleMessage(data, client);
+
+    if (RET != MESSAGE_PARSED_OK) {
+        client->sendMessage(CFatalErrorMessage(nullptr, -1, "fatal: failed to handle message on wire"));
+        client->m_error = true;
+        return;
+    }
 }
 
 int CServerSocket::extractLoopFD() {

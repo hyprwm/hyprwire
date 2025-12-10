@@ -55,7 +55,7 @@ CFatalErrorMessage::CFatalErrorMessage(SP<IWireObject> obj, uint32_t errorId, co
 
     m_data = {HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0, HW_MESSAGE_MAGIC_TYPE_VARCHAR};
 
-    *rc<uint32_t*>(&m_data[2]) = obj->m_id;
+    *rc<uint32_t*>(&m_data[2]) = obj ? obj->m_id : 0;
     *rc<uint32_t*>(&m_data[7]) = errorId;
 
     m_data.append_range(g_messageParser->encodeVarInt(msg.size()));

@@ -10,6 +10,7 @@ namespace Hyprwire {
       public:
         CHelloMessage(const std::vector<uint8_t>& data, size_t offset);
         CHelloMessage();
-        ~CHelloMessage() = default;
+
+        virtual ~CHelloMessage() = default;
     };
 };

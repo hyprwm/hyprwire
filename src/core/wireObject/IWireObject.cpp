@@ -50,6 +50,7 @@ uint32_t IWireObject::call(uint32_t id, ...) {
 
     // encode the message
     std::vector<uint8_t> data;
+    std::vector<int>     fds;
     data.emplace_back(HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE);
     data.emplace_back(HW_MESSAGE_MAGIC_TYPE_OBJECT);
 
@@ -148,13 +149,21 @@ uint32_t IWireObject::call(uint32_t id, ...) {
                 break;
             }
 
+            case HW_MESSAGE_MAGIC_TYPE_FD: {
+                data.emplace_back(HW_MESSAGE_MAGIC_TYPE_FD);
+
+                // add fd to our message
+                fds.emplace_back(va_arg(va, int32_t));
+                break;
+            }
+
             default: break;
         }
     }
 
     data.emplace_back(HW_MESSAGE_MAGIC_END);
 
-    auto msg = CGenericProtocolMessage(std::move(data));
+    auto msg = CGenericProtocolMessage(std::move(data), std::move(fds));
     sendMessage(msg);
 
     if (waitOnSeq) {
@@ -175,7 +184,7 @@ void IWireObject::listen(uint32_t id, void* fn) {
     m_listeners.at(id) = fn;
 }
 
-void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
+void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, const std::vector<int>& fds) {
     const auto METHODS = methodsIn();
     if (METHODS.size() <= id) {
         const auto MSG = std::format("invalid method {} for object {}", id, m_id);
@@ -218,6 +227,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
 
         switch (PARAM) {
             case HW_MESSAGE_MAGIC_END: ++i; break; // BUG if this happens or malformed message
+            case HW_MESSAGE_MAGIC_TYPE_FD: dataI++; break;
             case HW_MESSAGE_MAGIC_TYPE_UINT:
             case HW_MESSAGE_MAGIC_TYPE_F32:
             case HW_MESSAGE_MAGIC_TYPE_INT:
@@ -301,6 +311,8 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
     auto                         ptrBuf = malloc(sizeof(IObject*));
     avalues.emplace_back(ptrBuf);
     *rc<IObject**>(ptrBuf) = m_self.get();
+
+    size_t      fdNo = 0;
 
     CScopeGuard x([&] {
         for (const auto& v : avalues) {
@@ -423,6 +435,11 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data) {
                 Debug::log(ERR, "core protocol error: {}", MSG);
                 error(m_id, MSG);
                 return;
+            }
+            case HW_MESSAGE_MAGIC_TYPE_FD: {
+                buf                = malloc(sizeof(int32_t));
+                *rc<int32_t*>(buf) = fds.at(fdNo++);
+                break;
             }
         }
         avalues.emplace_back(buf);

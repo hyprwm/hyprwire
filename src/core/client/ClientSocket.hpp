@@ -36,6 +36,8 @@ namespace Hyprwire {
         SP<CClientObject>                              makeObject(const std::string& protocolName, const std::string& objectName, uint32_t seq);
         void                                           waitForObject(SP<CClientObject>);
 
+        void                                           disconnectOnError();
+
         Hyprutils::OS::CFileDescriptor                 m_fd;
         std::vector<SP<IProtocolClientImplementation>> m_impls;
         std::vector<SP<IProtocolSpec>>                 m_serverSpecs;

@@ -10,7 +10,8 @@ namespace Hyprwire {
       public:
         CHandshakeProtocolsMessage(const std::vector<uint8_t>& data, size_t offset);
         CHandshakeProtocolsMessage(const std::vector<std::string>& protocols);
-        ~CHandshakeProtocolsMessage() = default;
+
+        virtual ~CHandshakeProtocolsMessage() = default;
 
         std::vector<std::string> m_protocols;
     };

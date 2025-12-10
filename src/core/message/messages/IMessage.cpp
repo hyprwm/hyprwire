@@ -20,6 +20,9 @@ static std::pair<std::string, size_t> formatPrimitiveType(const std::span<const 
         case HW_MESSAGE_MAGIC_TYPE_F32: {
             return {std::format("{}", *rc<const float*>(&s[0])), 4};
         }
+        case HW_MESSAGE_MAGIC_TYPE_FD: {
+            return {"<fd>", 0};
+        }
         case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
             auto id = *rc<const uint32_t*>(&s[0]);
             return {std::format("object: {}", id == 0 ? "null" : std::to_string(id)), 4};
@@ -99,6 +102,10 @@ std::string IMessage::parseData() const {
                 result += std::format("object({})", id);
                 break;
             }
+            case HW_MESSAGE_MAGIC_TYPE_FD: {
+                result += "<fd>";
+                break;
+            }
         }
 
         result += ", ";
@@ -115,4 +122,9 @@ std::string IMessage::parseData() const {
 
     result += " ) ";
     return result;
+}
+
+const std::vector<int>& IMessage::fds() const {
+    static const std::vector<int> emptyVec;
+    return emptyVec;
 }

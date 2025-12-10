@@ -9,7 +9,7 @@
 
 using namespace Hyprwire;
 
-CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& data, size_t offset) {
+CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& data, std::vector<int>& fds, size_t offset) {
     m_type = HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE;
 
     try {
@@ -61,6 +61,16 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
                             }
                             break;
                         }
+                        case HW_MESSAGE_MAGIC_TYPE_FD: {
+                            if (fds.empty())
+                                return;
+
+                            m_fds.emplace_back(fds[0]);
+                            fds.erase(fds.begin(), fds.begin() + 1);
+
+                            i += 0;
+                            break;
+                        }
                         default: {
                             Debug::log(TRACE, "GenericProtocolMessage: failed demarshaling array message");
                             return;
@@ -68,6 +78,16 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
                     }
 
                     i += arrMessageLen;
+                    break;
+                }
+                case HW_MESSAGE_MAGIC_TYPE_FD: {
+                    if (fds.empty())
+                        return;
+
+                    m_fds.emplace_back(fds[0]);
+                    fds.erase(fds.begin(), fds.begin() + 1);
+
+                    i += 1;
                     break;
                 }
                 default: {
@@ -87,7 +107,11 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
     } catch (std::out_of_range& e) { m_len = 0; }
 }
 
-CGenericProtocolMessage::CGenericProtocolMessage(std::vector<uint8_t>&& data) {
+CGenericProtocolMessage::CGenericProtocolMessage(std::vector<uint8_t>&& data, std::vector<int>&& fds) : m_fds(std::move(fds)) {
     m_data = std::move(data);
     m_type = HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE;
+}
+
+const std::vector<int>& CGenericProtocolMessage::fds() const {
+    return m_fds;
 }

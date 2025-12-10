@@ -95,6 +95,8 @@ static Hyprwire::eMessageMagic strToMagic(const std::string_view& sv) {
         return Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT;
     if (sv == "f32")
         return Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32;
+    if (sv == "fd")
+        return Hyprwire::HW_MESSAGE_MAGIC_TYPE_FD;
     // if (sv == "object")
     //     return Hyprwire::HW_MESSAGE_MAGIC_TYPE_OBJECT_ID;
     if (sv.starts_with("array "))
@@ -108,6 +110,7 @@ static std::string magicToString(Hyprwire::eMessageMagic m, Hyprwire::eMessageMa
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_FD: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_FD";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY: return "Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY, " + magicToString(arrType);
         default: return "";
     }
@@ -119,6 +122,7 @@ static std::string argToC(Hyprwire::eMessageMagic m) {
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_UINT: return "uint32_t";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT: return "int32_t";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32: return "float";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_FD: return "int";
         default: return "";
     }
 }
@@ -134,6 +138,7 @@ static std::string argToC(const SRequestArgument& arg) {
         }
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT: return "int32_t";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32: return "float";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_FD: return "int";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY: return "std::vector<" + argToC(arg.arrType) + ">";
         default: return "";
     }

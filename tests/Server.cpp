@@ -18,6 +18,11 @@ static SP<CTestProtocolV1Impl>     spec  = makeShared<CTestProtocolV1Impl>(1, []
 
     manager->sendSendMessage("Hello object");
     manager->setSendMessage([](const char* msg) { std::println("Recvd message: {}", msg); });
+    manager->setSendMessageFd([](int fd) {
+        char msgbuf[6] = {0};
+        read(fd, msgbuf, 5);
+        std::println("Recvd fd {} with data: {}", fd, msgbuf);
+    });
     manager->setSendMessageArray([](std::vector<const char*> data) {
         std::string conct = "";
         for (const auto& d : data) {

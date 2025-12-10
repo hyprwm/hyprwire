@@ -17,7 +17,7 @@ namespace Hyprwire {
 
         virtual uint32_t                    call(uint32_t id, ...);
         virtual void                        listen(uint32_t id, void* fn);
-        virtual void                        called(uint32_t id, const std::span<const uint8_t>& data);
+        virtual void                        called(uint32_t id, const std::span<const uint8_t>& data, const std::vector<int>& fds);
         virtual const std::vector<SMethod>& methodsOut()                 = 0;
         virtual const std::vector<SMethod>& methodsIn()                  = 0;
         virtual void                        errd()                       = 0;

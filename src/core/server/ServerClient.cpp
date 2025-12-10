@@ -97,7 +97,7 @@ void CServerClient::onBind(SP<CServerObject> obj) {
 void CServerClient::onGeneric(const CGenericProtocolMessage& msg) {
     for (const auto& o : m_objects) {
         if (o->m_id == msg.m_object) {
-            o->called(msg.m_method, msg.m_dataSpan);
+            o->called(msg.m_method, msg.m_dataSpan, msg.m_fds);
             break;
         }
     }

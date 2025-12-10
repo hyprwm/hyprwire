@@ -10,7 +10,8 @@ namespace Hyprwire {
       public:
         CHandshakeAckMessage(const std::vector<uint8_t>& data, size_t offset);
         CHandshakeAckMessage(uint32_t version);
-        ~CHandshakeAckMessage() = default;
+
+        virtual ~CHandshakeAckMessage() = default;
 
         uint32_t m_version = 0;
     };

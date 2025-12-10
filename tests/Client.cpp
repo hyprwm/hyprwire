@@ -37,7 +37,14 @@ int                                main(int argc, char** argv, char** envp) {
 
     std::println("Bound!");
 
+    int pips[2];
+    pipe(pips);
+    write(pips[1], "pipe!", 5);
+
+    std::println("Will send fd {}", pips[0]);
+
     manager->sendSendMessage("Hello!");
+    manager->sendSendMessageFd(pips[0]);
     manager->sendSendMessageArray(std::vector<const char*>{"Hello", "via", "array!"});
     manager->sendSendMessageArrayUint(std::vector<uint32_t>{69, 420, 2137});
     manager->setSendMessage([](const char* msg) { std::println("Server says {}", msg); });
