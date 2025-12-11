@@ -10,6 +10,8 @@
 #include <hyprwire/core/implementation/ServerImpl.hpp>
 #include <hyprwire/core/implementation/Spec.hpp>
 
+#include <sys/socket.h>
+
 using namespace Hyprwire;
 
 CServerClient::CServerClient(int fd) : m_fd(fd) {
@@ -22,7 +24,38 @@ CServerClient::~CServerClient() {
 
 void CServerClient::sendMessage(const IMessage& message) {
     TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> {}", m_fd.get(), steadyMillis(), message.parseData()));
-    write(m_fd.get(), message.m_data.data(), message.m_data.size());
+    // NOLINTNEXTLINE
+    msghdr      msg = {0}; // NOLINTNEXTLINE
+    iovec       io  = {0};
+
+    const auto& FDS = message.fds();
+
+    // fucking evil!
+    io.iov_base    = cc<void*>(rc<const void*>(message.m_data.data()));
+    io.iov_len     = message.m_data.size();
+    msg.msg_iov    = &io;
+    msg.msg_iovlen = 1;
+
+    std::vector<uint8_t> controlBuf;
+
+    if (!FDS.empty()) {
+        controlBuf.resize(CMSG_SPACE(sizeof(int) * FDS.size()));
+
+        msg.msg_control    = controlBuf.data();
+        msg.msg_controllen = controlBuf.size();
+
+        cmsghdr* cmsg    = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type  = SCM_RIGHTS;
+        cmsg->cmsg_len   = CMSG_LEN(sizeof(int) * FDS.size());
+
+        int* data = rc<int*>(CMSG_DATA(cmsg));
+        for (size_t i = 0; i < FDS.size(); ++i) {
+            data[i] = FDS.at(i);
+        }
+    }
+
+    sendmsg(m_fd.get(), &msg, 0);
 }
 
 SP<CServerObject> CServerClient::createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq) {
