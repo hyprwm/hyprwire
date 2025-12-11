@@ -6,6 +6,7 @@
 #include "../../Macros.hpp"
 #include "../message/MessageParser.hpp"
 #include "../message/messages/FatalProtocolError.hpp"
+#include "../message/messages/RoundtripDone.hpp"
 #include "../socket/SocketHelpers.hpp"
 
 #include <sys/socket.h>
@@ -266,6 +267,11 @@ void CServerSocket::dispatchClient(SP<CServerClient> client) {
         client->sendMessage(CFatalErrorMessage(nullptr, -1, "fatal: failed to handle message on wire"));
         client->m_error = true;
         return;
+    }
+
+    if (client->m_scheduledRoundtripSeq > 0) {
+        client->sendMessage(CRoundtripDoneMessage{client->m_scheduledRoundtripSeq});
+        client->m_scheduledRoundtripSeq = 0;
     }
 }
 

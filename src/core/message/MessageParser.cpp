@@ -145,7 +145,7 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
 
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg.parseData()));
 
-            client->sendMessage(CRoundtripDoneMessage(msg.m_seq));
+            client->m_scheduledRoundtripSeq = msg.m_seq;
 
             return msg.m_len;
         }

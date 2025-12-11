@@ -27,6 +27,8 @@ namespace Hyprwire {
         uint32_t                       m_version = 0, m_maxId = 1;
         bool                           m_error = false;
 
+        uint32_t                       m_scheduledRoundtripSeq = 0;
+
         std::vector<SP<CServerObject>> m_objects;
 
         WP<CServerSocket>              m_server;

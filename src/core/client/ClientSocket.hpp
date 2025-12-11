@@ -53,6 +53,6 @@ namespace Hyprwire {
         WP<CClientSocket>                              m_self;
         uint32_t                                       m_seq = 0;
 
-        uint32_t                                       m_lastAckdRoundtripSeq = 0;
+        uint32_t                                       m_lastAckdRoundtripSeq  = 0;
     };
 };
