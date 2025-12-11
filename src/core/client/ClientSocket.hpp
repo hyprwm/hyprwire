@@ -27,6 +27,7 @@ namespace Hyprwire {
         virtual SP<IProtocolSpec>                      getSpec(const std::string& name);
         virtual SP<IObject>                            bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version);
         virtual SP<IObject>                            objectForId(uint32_t id);
+        virtual void                                   roundtrip();
 
         void                                           sendMessage(const IMessage& message);
         void                                           serverSpecs(const std::vector<std::string>& s);
@@ -51,5 +52,7 @@ namespace Hyprwire {
 
         WP<CClientSocket>                              m_self;
         uint32_t                                       m_seq = 0;
+
+        uint32_t                                       m_lastAckdRoundtripSeq = 0;
     };
 };

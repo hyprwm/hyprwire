@@ -16,6 +16,8 @@
 #include "messages/NewObject.hpp"
 #include "messages/GenericProtocolMessage.hpp"
 #include "messages/FatalProtocolError.hpp"
+#include "messages/RoundtripDone.hpp"
+#include "messages/RoundtripRequest.hpp"
 
 #include <hyprwire/core/implementation/ServerImpl.hpp>
 #include <hyprwire/core/implementation/Spec.hpp>
@@ -135,6 +137,24 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
                 Debug::log(ERR, "client at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR)", client->m_fd.get());
                 return 0;
             }
+            case HW_MESSAGE_TYPE_ROUNDTRIP_REQUEST: {
+                auto msg = CRoundtripRequestMessage(data, off);
+                if (!msg.m_len) {
+                    Debug::log(ERR, "client at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_ROUNDTRIP_REQUEST)", client->m_fd.get());
+                    return 0;
+                }
+
+                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg.parseData()));
+
+                client->sendMessage(CRoundtripDoneMessage(msg.m_seq));
+
+                return msg.m_len;
+            }
+            case HW_MESSAGE_TYPE_ROUNDTRIP_DONE: {
+                client->m_error = true;
+                Debug::log(ERR, "client at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_ROUNDTRIP_DONE)", client->m_fd.get());
+                return 0;
+            }
             case HW_MESSAGE_TYPE_INVALID: break;
         }
     } catch (std::out_of_range& e) {
@@ -231,6 +251,24 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
 
                 Debug::log(ERR, "fatal protocol error: object {} error {}: {}", msg.m_objectId, msg.m_errorId, msg.m_errorMsg);
                 client->m_error = true;
+                return msg.m_len;
+            }
+            case HW_MESSAGE_TYPE_ROUNDTRIP_REQUEST: {
+                client->m_error = true;
+                Debug::log(ERR, "server at fd {} core protocol error: invalid message recvd (HW_MESSAGE_TYPE_ROUNDTRIP_REQUEST)", client->m_fd.get());
+                return 0;
+            }
+            case HW_MESSAGE_TYPE_ROUNDTRIP_DONE: {
+                auto msg = CRoundtripDoneMessage(data, off);
+                if (!msg.m_len) {
+                    Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_ROUNDTRIP_DONE)", client->m_fd.get());
+                    return 0;
+                }
+
+                TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg.parseData()));
+
+                client->m_lastAckdRoundtripSeq = msg.m_seq;
+
                 return msg.m_len;
             }
             case HW_MESSAGE_TYPE_INVALID: break;

@@ -51,6 +51,11 @@ namespace Hyprwire {
         */
         virtual Hyprutils::Memory::CSharedPointer<IObject> objectForId(uint32_t id) = 0;
 
+        /*
+            Perform a roundtrip
+        */
+        virtual void roundtrip() = 0;
+
       protected:
         IClientSocket() = default;
     };

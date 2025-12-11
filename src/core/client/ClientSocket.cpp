@@ -7,6 +7,7 @@
 #include "../message/messages/Hello.hpp"
 #include "../message/messages/BindProtocol.hpp"
 #include "../message/messages/GenericProtocolMessage.hpp"
+#include "../message/messages/RoundtripRequest.hpp"
 #include "../socket/SocketHelpers.hpp"
 #include "ServerSpec.hpp"
 #include "ClientObject.hpp"
@@ -308,4 +309,17 @@ SP<IObject> CClientSocket::objectForId(uint32_t id) {
 void CClientSocket::disconnectOnError() {
     m_error = true;
     m_fd.reset();
+}
+
+void CClientSocket::roundtrip() {
+    if (m_error)
+        return;
+
+    auto nextSeq = m_lastAckdRoundtripSeq + 1;
+    sendMessage(CRoundtripRequestMessage(nextSeq));
+
+    while (m_lastAckdRoundtripSeq < nextSeq) {
+        if (!dispatchEvents(true))
+            break;
+    }
 }

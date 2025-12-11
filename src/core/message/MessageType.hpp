@@ -49,6 +49,18 @@ namespace Hyprwire {
         HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR = 12,
 
         /*
+            Sent from the client to initiate a roundtrip.
+            Params: uint -> sequence
+        */
+        HW_MESSAGE_TYPE_ROUNDTRIP_REQUEST = 13,
+
+        /*
+            Sent from the server to finalize the roundtrip.
+            Params: uint -> sequence
+        */
+        HW_MESSAGE_TYPE_ROUNDTRIP_DONE = 14,
+
+        /*
             Generic protocol message. Can be either direction.
             Params: uint -> object handle ID, uint -> method ID, data...
         */
@@ -66,6 +78,8 @@ namespace Hyprwire {
             case HW_MESSAGE_TYPE_NEW_OBJECT: return "NEW_OBJECT";
             case HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR: return "HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR";
             case HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE: return "GENERIC_PROTOCOL_MESSAGE";
+            case HW_MESSAGE_TYPE_ROUNDTRIP_REQUEST: return "HW_MESSAGE_TYPE_ROUNDTRIP_REQUEST";
+            case HW_MESSAGE_TYPE_ROUNDTRIP_DONE: return "HW_MESSAGE_TYPE_ROUNDTRIP_DONE";
         }
         return "ERROR";
     }
