@@ -30,6 +30,7 @@ namespace Hyprwire {
         bool                                           dispatchPending();
         void                                           dispatchClient(SP<CServerClient> client);
         void                                           clearEventFd();
+        size_t                                         internalFds();
 
         std::vector<SP<IProtocolServerImplementation>> m_impls;
 

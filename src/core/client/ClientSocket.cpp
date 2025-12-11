@@ -30,21 +30,21 @@ using namespace Hyprutils::Utils;
 
 SP<IClientSocket> IClientSocket::open(const std::string& path) {
     SP<CClientSocket> sock = makeShared<CClientSocket>();
+    sock->m_self           = sock;
 
     if (!sock->attempt(path))
         return nullptr;
 
-    sock->m_self = sock;
     return sock;
 }
 
 SP<IClientSocket> IClientSocket::open(const int fd) {
     SP<CClientSocket> sock = makeShared<CClientSocket>();
+    sock->m_self           = sock;
 
     if (!sock->attemptFromFd(fd))
         return nullptr;
 
-    sock->m_self = sock;
     return sock;
 }
 

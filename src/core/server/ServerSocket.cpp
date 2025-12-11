@@ -22,21 +22,21 @@ using namespace Hyprutils::Utils;
 
 SP<IServerSocket> IServerSocket::open(const std::string& path) {
     SP<CServerSocket> sock = makeShared<CServerSocket>();
+    sock->m_self           = sock;
 
     if (!sock->attempt(path))
         return nullptr;
 
-    sock->m_self = sock;
     return sock;
 }
 
 SP<IServerSocket> IServerSocket::open(const int fd) {
     SP<CServerSocket> sock = makeShared<CServerSocket>();
+    sock->m_self           = sock;
 
     if (!sock->attemptFromFd(fd))
         return nullptr;
 
-    sock->m_self = sock;
     return sock;
 }
 
@@ -176,7 +176,9 @@ void CServerSocket::clearEventFd() {
     }
 }
 
-constexpr const size_t INTERNAL_FDS = 2;
+size_t CServerSocket::internalFds() {
+    return m_isFdListener ? 1 : 2;
+}
 
 //
 void CServerSocket::recheckPollFds() {
@@ -203,6 +205,9 @@ void CServerSocket::recheckPollFds() {
 }
 
 bool CServerSocket::dispatchNewConnections() {
+    if (m_isFdListener)
+        return false;
+
     if (!(m_pollfds.at(0).revents & POLLIN))
         return false;
 
@@ -222,23 +227,23 @@ bool CServerSocket::dispatchExistingConnections() {
     bool hadAny           = false;
     bool needsPollRecheck = false;
 
-    for (size_t i = INTERNAL_FDS; i < m_pollfds.size(); ++i) {
+    for (size_t i = internalFds(); i < m_pollfds.size(); ++i) {
         if (!(m_pollfds.at(i).revents & POLLIN))
             continue;
 
-        dispatchClient(m_clients.at(i - INTERNAL_FDS));
+        dispatchClient(m_clients.at(i - internalFds()));
 
         hadAny = true;
 
         if (m_pollfds.at(i).revents & POLLHUP) {
-            m_clients.at(i - INTERNAL_FDS)->m_error = true;
-            needsPollRecheck                        = true;
-            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (hangup)", m_clients.at(i - INTERNAL_FDS)->m_fd.get(), steadyMillis()));
+            m_clients.at(i - internalFds())->m_error = true;
+            needsPollRecheck                         = true;
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (hangup)", m_clients.at(i - internalFds())->m_fd.get(), steadyMillis()));
             continue;
         }
 
-        if (m_clients.at(i - INTERNAL_FDS)->m_error)
-            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - INTERNAL_FDS)->m_fd.get(), steadyMillis()));
+        if (m_clients.at(i - internalFds())->m_error)
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - internalFds())->m_fd.get(), steadyMillis()));
     }
 
     if (needsPollRecheck) {
