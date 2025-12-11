@@ -196,8 +196,13 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
     if (m_listeners.size() <= id || m_listeners.at(id) == nullptr)
         return;
 
-    const auto& method = METHODS.at(id);
-    const auto  params = method.params;
+    const auto&          method = METHODS.at(id);
+    std::vector<uint8_t> params;
+
+    if (!method.returnsType.empty())
+        params.emplace_back(HW_MESSAGE_MAGIC_TYPE_SEQ);
+
+    params.append_range(method.params);
 
     if (method.since > m_version) {
         const auto MSG = std::format("method {} since {} but has {}", id, method.since, m_version);
@@ -207,9 +212,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
     }
 
     std::vector<ffi_type*> ffiTypes = {&ffi_type_pointer};
-    if (!method.returnsType.empty())
-        ffiTypes.emplace_back(&ffi_type_uint32);
-    size_t dataI = 0;
+    size_t                 dataI    = 0;
     for (size_t i = 0; i < params.size(); ++i) {
         const auto PARAM      = sc<eMessageMagic>(params.at(i));
         const auto WIRE_PARAM = sc<eMessageMagic>(data[dataI]);
@@ -382,7 +385,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                     case HW_MESSAGE_MAGIC_TYPE_INT:
                     case HW_MESSAGE_MAGIC_TYPE_OBJECT:
                     case HW_MESSAGE_MAGIC_TYPE_SEQ: {
-                        auto dataPtr  = rc<uint32_t*>(malloc(sizeof(uint32_t) * arrLen));
+                        auto dataPtr  = rc<uint32_t*>(malloc(sizeof(uint32_t) * (arrLen == 0 ? 1 : arrLen)));
                         auto dataSlot = rc<uint32_t**>(malloc(sizeof(uint32_t**)));
                         auto sizeSlot = rc<uint32_t*>(malloc(sizeof(uint32_t)));
 
@@ -400,7 +403,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                         break;
                     }
                     case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
-                        auto dataPtr  = rc<const char**>(malloc(sizeof(const char*) * arrLen));
+                        auto dataPtr  = rc<const char**>(malloc(sizeof(const char*) * (arrLen == 0 ? 1 : arrLen)));
                         auto dataSlot = rc<const char***>(malloc(sizeof(const char***)));
                         auto sizeSlot = rc<uint32_t*>(malloc(sizeof(uint32_t)));
 
@@ -442,7 +445,8 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                 break;
             }
         }
-        avalues.emplace_back(buf);
+        if (buf)
+            avalues.emplace_back(buf);
     }
 
     auto fptr = reinterpret_cast<void (*)()>(m_listeners.at(id));

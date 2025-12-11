@@ -28,8 +28,10 @@ static SP<CTestProtocolV1Impl>     spec  = makeShared<CTestProtocolV1Impl>(1, []
         for (const auto& d : data) {
             conct += d + std::string{", "};
         }
-        conct.pop_back();
-        conct.pop_back();
+        if (conct.size() > 1) {
+            conct.pop_back();
+            conct.pop_back();
+        }
         std::println("Got array message: \"{}\"", conct);
     });
     manager->setSendMessageArrayUint([](std::vector<uint32_t> data) {
