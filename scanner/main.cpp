@@ -139,7 +139,7 @@ static std::string argToC(const SRequestArgument& arg) {
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_INT: return "int32_t";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_F32: return "float";
         case Hyprwire::HW_MESSAGE_MAGIC_TYPE_FD: return "int";
-        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY: return "std::vector<" + argToC(arg.arrType) + ">";
+        case Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY: return "const std::vector<" + argToC(arg.arrType) + ">&";
         default: return "";
     }
 }
