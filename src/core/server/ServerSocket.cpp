@@ -30,14 +30,22 @@ SP<IServerSocket> IServerSocket::open(const std::string& path) {
     return sock;
 }
 
-SP<IServerSocket> IServerSocket::open(const int fd) {
+SP<IServerSocket> IServerSocket::open() {
     SP<CServerSocket> sock = makeShared<CServerSocket>();
     sock->m_self           = sock;
 
-    if (!sock->attemptFromFd(fd))
+    if (!sock->attemptEmpty())
         return nullptr;
 
     return sock;
+}
+
+CServerSocket::CServerSocket() {
+    int pipes[2];
+    pipe(pipes);
+
+    m_wakeupFd      = CFileDescriptor{pipes[0]};
+    m_wakeupWriteFd = CFileDescriptor{pipes[1]};
 }
 
 CServerSocket::~CServerSocket() {
@@ -112,14 +120,8 @@ bool CServerSocket::attempt(const std::string& path) {
     return true;
 }
 
-bool CServerSocket::attemptFromFd(const int fd) {
-
-    auto x      = m_clients.emplace_back(makeShared<CServerClient>(fd));
-    x->m_server = m_self;
-    x->m_self   = x;
-
-    m_success      = true;
-    m_isFdListener = true;
+bool CServerSocket::attemptEmpty() {
+    m_isEmptyListener = true;
 
     recheckPollFds();
 
@@ -148,6 +150,7 @@ bool CServerSocket::dispatchEvents(bool block) {
 
     // read from our event fd to avoid events
     clearEventFd();
+    clearWakeupFd();
 
     if (block) {
         poll(m_pollfds.data(), m_pollfds.size(), -1);
@@ -158,22 +161,27 @@ bool CServerSocket::dispatchEvents(bool block) {
 
     m_pollmtx.unlock();
 
+    if (m_exportPollMtxLocked) {
+        m_exportPollMtx.unlock();
+        m_exportPollMtxLocked = false;
+    }
+
     return true;
 }
 
-void CServerSocket::clearEventFd() {
+void CServerSocket::clearFd(const Hyprutils::OS::CFileDescriptor& fd) {
     char   buf[128];
     pollfd pfd = {
-        .fd     = m_exportFd.get(),
+        .fd     = fd.get(),
         .events = POLLIN,
 
     };
 
-    while (m_exportFd.isValid()) {
+    while (fd.isValid()) {
         poll(&pfd, 1, 0);
 
         if (pfd.revents & POLLIN) {
-            read(m_exportFd.get(), buf, 127);
+            read(fd.get(), buf, 127);
             continue;
         }
 
@@ -181,15 +189,49 @@ void CServerSocket::clearEventFd() {
     }
 }
 
+void CServerSocket::clearEventFd() {
+    clearFd(m_exportFd);
+}
+
+void CServerSocket::clearWakeupFd() {
+    clearFd(m_wakeupFd);
+}
+
+bool CServerSocket::addClient(int fd) {
+    auto x = makeShared<CServerClient>(fd);
+    if (!x->m_fd.isReadable() || !x->m_fd.isValid())
+        return false;
+
+    x->m_self   = x;
+    x->m_server = m_self;
+    m_clients.emplace_back(std::move(x));
+
+    recheckPollFds();
+
+    // wake up any poller
+    write(m_wakeupWriteFd.get(), "x", 1);
+
+    return true;
+}
+
+bool CServerSocket::removeClient(int fd) {
+    auto r = std::erase_if(m_clients, [&fd](const auto& c) { return c->m_fd.get() == fd; });
+
+    if (r > 0)
+        recheckPollFds();
+
+    return r > 0;
+}
+
 size_t CServerSocket::internalFds() {
-    return m_isFdListener ? 1 : 2;
+    return m_isEmptyListener ? 2 : 3;
 }
 
 //
 void CServerSocket::recheckPollFds() {
     m_pollfds.clear();
 
-    if (!m_isFdListener) {
+    if (!m_isEmptyListener) {
         m_pollfds.emplace_back(pollfd{
             .fd     = m_fd.get(),
             .events = POLLIN,
@@ -198,6 +240,11 @@ void CServerSocket::recheckPollFds() {
 
     m_pollfds.emplace_back(pollfd{
         .fd     = m_exitFd.get(),
+        .events = POLLIN,
+    });
+
+    m_pollfds.emplace_back(pollfd{
+        .fd     = m_wakeupFd.get(),
         .events = POLLIN,
     });
 
@@ -210,7 +257,7 @@ void CServerSocket::recheckPollFds() {
 }
 
 bool CServerSocket::dispatchNewConnections() {
-    if (m_isFdListener)
+    if (m_isEmptyListener)
         return false;
 
     if (!(m_pollfds.at(0).revents & POLLIN))
@@ -304,10 +351,14 @@ int CServerSocket::extractLoopFD() {
 
         m_pollThread = std::thread([this] {
             while (m_threadCanPoll) {
+
+                m_exportPollMtx.lock(); // wait for dispatch to unlock
+                m_exportPollMtxLocked = true;
+
                 m_pollmtx.lock();
 
                 std::vector<pollfd> pollfds;
-                if (!m_isFdListener) {
+                if (!m_isEmptyListener) {
                     pollfds.emplace_back(pollfd{
                         .fd     = m_fd.get(),
                         .events = POLLIN,
@@ -316,6 +367,11 @@ int CServerSocket::extractLoopFD() {
 
                 pollfds.emplace_back(pollfd{
                     .fd     = m_exitFd.get(),
+                    .events = POLLIN,
+                });
+
+                pollfds.emplace_back(pollfd{
+                    .fd     = m_wakeupFd.get(),
                     .events = POLLIN,
                 });
 

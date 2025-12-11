@@ -20,8 +20,8 @@ namespace Hyprwire {
 
         static Hyprutils::Memory::CSharedPointer<IServerSocket> open(const std::string& path);
 
-        // IServerSocket takes ownership of the fd.
-        static Hyprutils::Memory::CSharedPointer<IServerSocket> open(const int fd);
+        // anonymous socket, you can add and remove clients manually
+        static Hyprutils::Memory::CSharedPointer<IServerSocket> open();
 
         /*
             Add an implementation to the socket
@@ -43,6 +43,17 @@ namespace Hyprwire {
             Extract the loop FD. FD is owned by this socket, do not close it.
         */
         virtual int extractLoopFD() = 0;
+
+        /*
+            Add a client by fd manually. Hyprwire takes ownership of the fd.
+        */
+        virtual bool addClient(int fd) = 0;
+
+        /*
+            Remove a client by fd. Do not close the fd, hyprwire will manage it.
+            Returns true if it removed anything.
+        */
+        virtual bool removeClient(int fd) = 0;
 
       protected:
         IServerSocket() = default;
