@@ -99,7 +99,7 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
 
         m_len = i + 1;
 
-        m_dataSpan = std::span<const uint8_t>{data.begin() + 11 + offset, m_len};
+        m_dataSpan = std::span<const uint8_t>{data.begin() + 11 + offset, m_len - 11};
 
         if (Env::isTrace())
             m_data = std::vector<uint8_t>{data.begin() + offset, data.begin() + offset + m_len - 1};

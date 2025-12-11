@@ -237,7 +237,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
             case HW_MESSAGE_MAGIC_TYPE_OBJECT:
             case HW_MESSAGE_MAGIC_TYPE_SEQ: dataI += 5; break;
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
-                auto [a, b] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI], data.size() - dataI});
+                auto [a, b] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI + 1], data.size() - dataI});
                 dataI += a + b + 1;
                 break;
             }
