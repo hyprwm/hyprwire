@@ -44,6 +44,11 @@ CServerSocket::~CServerSocket() {
     if (!m_success)
         return;
 
+    if (m_pollThread.joinable()) {
+        write(m_exitWriteFd.get(), "x", 1);
+        m_pollThread.join();
+    }
+
     m_fd.reset();
 
     std::error_code ec;
@@ -308,6 +313,11 @@ int CServerSocket::extractLoopFD() {
                         .events = POLLIN,
                     });
                 }
+
+                pollfds.emplace_back(pollfd{
+                    .fd     = m_exitFd.get(),
+                    .events = POLLIN,
+                });
 
                 for (const auto& c : m_clients) {
                     pollfds.emplace_back(pollfd{
