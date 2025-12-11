@@ -81,8 +81,10 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
                     break;
                 }
                 case HW_MESSAGE_MAGIC_TYPE_FD: {
-                    if (fds.empty())
+                    if (fds.empty()) {
+                        Debug::log(TRACE, "GenericProtocolMessage: HW_MESSAGE_MAGIC_TYPE_FD but fd queue is empty");
                         return;
+                    }
 
                     m_fds.emplace_back(fds[0]);
                     fds.erase(fds.begin(), fds.begin() + 1);
