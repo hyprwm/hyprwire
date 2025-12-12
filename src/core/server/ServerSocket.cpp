@@ -197,21 +197,21 @@ void CServerSocket::clearWakeupFd() {
     clearFd(m_wakeupFd);
 }
 
-bool CServerSocket::addClient(int fd) {
+SP<IServerClient> CServerSocket::addClient(int fd) {
     auto x = makeShared<CServerClient>(fd);
     if (!x->m_fd.isReadable() || !x->m_fd.isValid())
-        return false;
+        return nullptr;
 
     x->m_self   = x;
     x->m_server = m_self;
-    m_clients.emplace_back(std::move(x));
+    m_clients.emplace_back(x);
 
     recheckPollFds();
 
     // wake up any poller
     write(m_wakeupWriteFd.get(), "x", 1);
 
-    return true;
+    return x;
 }
 
 bool CServerSocket::removeClient(int fd) {

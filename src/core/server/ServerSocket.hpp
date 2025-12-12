@@ -23,7 +23,7 @@ namespace Hyprwire {
         virtual bool                                   dispatchEvents(bool block);
         virtual int                                    extractLoopFD();
         virtual SP<IObject>                            createObject(SP<IServerClient> client, SP<IObject> reference, const std::string& object, uint32_t seq);
-        virtual bool                                   addClient(int fd);
+        virtual SP<IServerClient>                      addClient(int fd);
         virtual bool                                   removeClient(int fd);
 
         void                                           recheckPollFds();

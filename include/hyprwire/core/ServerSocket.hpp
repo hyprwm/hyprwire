@@ -47,7 +47,7 @@ namespace Hyprwire {
         /*
             Add a client by fd manually. Hyprwire takes ownership of the fd.
         */
-        virtual bool addClient(int fd) = 0;
+        virtual Hyprutils::Memory::CSharedPointer<IServerClient> addClient(int fd) = 0;
 
         /*
             Remove a client by fd. Do not close the fd, hyprwire will manage it.
