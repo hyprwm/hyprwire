@@ -11,6 +11,7 @@
 #include <hyprwire/core/implementation/Spec.hpp>
 
 #include <sys/socket.h>
+#include <sys/types.h>
 
 using namespace Hyprwire;
 
@@ -20,6 +21,25 @@ CServerClient::CServerClient(int fd) : m_fd(fd) {
 
 CServerClient::~CServerClient() {
     TRACE(Debug::log(TRACE, "[{}] destroying client", m_fd.get()));
+}
+
+void CServerClient::dispatchFirstPoll() {
+    if (m_firstPollDone)
+        return;
+
+    m_firstPollDone = true;
+
+    // get peer's pid
+
+    ucred     cred;
+    socklen_t len = sizeof(cred);
+
+    if (getsockopt(m_fd.get(), SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1) {
+        TRACE(Debug::log(TRACE, "dispatchFirstPoll: failed to get pid"));
+        return;
+    }
+
+    m_pid = cred.pid;
 }
 
 void CServerClient::sendMessage(const IMessage& message) {
@@ -134,4 +154,8 @@ void CServerClient::onGeneric(const CGenericProtocolMessage& msg) {
             break;
         }
     }
+}
+
+int CServerClient::getPID() {
+    return m_pid;
 }

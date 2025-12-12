@@ -68,6 +68,7 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
                 return 0;
             }
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg.parseData()));
+            client->dispatchFirstPoll();
             client->sendMessage(CHandshakeBeginMessage(std::vector<uint32_t>{HYPRWIRE_PROTOCOL_VER}));
             return msg.m_len;
         }

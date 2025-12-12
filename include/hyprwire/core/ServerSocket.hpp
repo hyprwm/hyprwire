@@ -10,6 +10,8 @@ namespace Hyprwire {
       public:
         virtual ~IServerClient();
 
+        virtual int getPID() = 0;
+
       protected:
         IServerClient() = default;
     };
