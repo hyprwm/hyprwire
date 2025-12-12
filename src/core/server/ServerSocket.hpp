@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <thread>
+#include <mutex>
 #include <sys/poll.h>
 
 namespace Hyprwire {
@@ -50,7 +51,7 @@ namespace Hyprwire {
 
         bool                                           m_threadCanPoll = false;
         std::thread                                    m_pollThread;
-        std::mutex                                     m_pollmtx;
+        std::recursive_mutex                           m_pollmtx;
         std::mutex                                     m_exportPollMtx;
         bool                                           m_exportPollMtxLocked = false;
 
