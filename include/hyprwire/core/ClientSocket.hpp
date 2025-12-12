@@ -56,6 +56,11 @@ namespace Hyprwire {
         */
         virtual void roundtrip() = 0;
 
+        /*
+            Check if handshake has been estabilished
+        */
+        virtual bool isHandshakeDone() = 0;
+
       protected:
         IClientSocket() = default;
     };

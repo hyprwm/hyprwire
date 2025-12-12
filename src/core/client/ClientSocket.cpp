@@ -215,6 +215,10 @@ bool CClientSocket::waitForHandshake() {
     return !m_error;
 }
 
+bool CClientSocket::isHandshakeDone() {
+    return m_handshakeDone;
+}
+
 SP<IProtocolSpec> CClientSocket::getSpec(const std::string& name) {
     for (const auto& s : m_serverSpecs) {
         if (s->specName() == name)

@@ -28,6 +28,7 @@ namespace Hyprwire {
         virtual SP<IObject>                            bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version);
         virtual SP<IObject>                            objectForId(uint32_t id);
         virtual void                                   roundtrip();
+        virtual bool                                   isHandshakeDone();
 
         void                                           sendMessage(const IMessage& message);
         void                                           serverSpecs(const std::vector<std::string>& s);
