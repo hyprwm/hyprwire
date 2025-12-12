@@ -8,16 +8,20 @@
 #include <sys/socket.h>
 
 #include <span>
+#include <mutex>
 
 using namespace Hyprwire;
 
 SSocketRawParsedMessage Hyprwire::parseFromFd(const Hyprutils::OS::CFileDescriptor& fd) {
-    SSocketRawParsedMessage message;
-    constexpr size_t        BUFFER_SIZE         = 8192;
-    constexpr size_t        MAX_FDS_PER_MSG     = 255;
-    static uint8_t          buffer[BUFFER_SIZE] = {0};
+    SSocketRawParsedMessage     message;
+    constexpr size_t            BUFFER_SIZE         = 8192;
+    constexpr size_t            MAX_FDS_PER_MSG     = 255;
+    static uint8_t              buffer[BUFFER_SIZE] = {0};
+    static std::mutex           readMutex; // TODO: make the buffer per-socket and no need for a mtx
 
-    ssize_t                 sizeWritten = 0;
+    std::lock_guard<std::mutex> lg(readMutex);
+
+    ssize_t                     sizeWritten = 0;
 
     do {
         // NOLINTNEXTLINE

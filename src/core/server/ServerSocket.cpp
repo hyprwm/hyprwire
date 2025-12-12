@@ -53,7 +53,10 @@ CServerSocket::~CServerSocket() {
         return;
 
     if (m_pollThread.joinable()) {
+        m_threadCanPoll = false;
         write(m_exitWriteFd.get(), "x", 1);
+        if (m_exportPollMtxLocked)
+            m_exportPollMtx.unlock();
         m_pollThread.join();
     }
 
@@ -354,6 +357,9 @@ int CServerSocket::extractLoopFD() {
 
                 m_exportPollMtx.lock(); // wait for dispatch to unlock
                 m_exportPollMtxLocked = true;
+
+                if (!m_threadCanPoll)
+                    break;
 
                 m_pollmtx.lock();
 
