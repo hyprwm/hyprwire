@@ -205,7 +205,7 @@ void CServerSocket::clearWakeupFd() {
 
 SP<IServerClient> CServerSocket::addClient(int fd) {
     auto x = makeShared<CServerClient>(fd);
-    if (!x->m_fd.isReadable() || !x->m_fd.isValid())
+    if (x->m_fd.isClosed() || !x->m_fd.isValid())
         return nullptr;
 
     x->m_self   = x;
