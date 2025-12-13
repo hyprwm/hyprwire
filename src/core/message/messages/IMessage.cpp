@@ -70,8 +70,11 @@ std::string IMessage::parseData() const {
             }
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                 auto [len, intLen] = g_messageParser->parseVarInt(m_data, needle);
-                auto ptr           = rc<const char*>(&m_data.at(needle + intLen));
-                result += std::format("\"{}\"", std::string_view{ptr, len});
+                if (len > 0) {
+                    auto ptr = rc<const char*>(&m_data.at(needle + intLen));
+                    result += std::format("\"{}\"", std::string_view{ptr, len});
+                } else
+                    result += "\"\"";
                 needle += intLen + len;
                 break;
             }
