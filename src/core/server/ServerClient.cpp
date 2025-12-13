@@ -16,7 +16,7 @@
 using namespace Hyprwire;
 
 CServerClient::CServerClient(int fd) : m_fd(fd) {
-    ;
+    m_fd.setFlags(O_CLOEXEC);
 }
 
 CServerClient::~CServerClient() {

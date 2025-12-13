@@ -46,6 +46,9 @@ CServerSocket::CServerSocket() {
 
     m_wakeupFd      = CFileDescriptor{pipes[0]};
     m_wakeupWriteFd = CFileDescriptor{pipes[1]};
+
+    m_wakeupWriteFd.setFlags(O_CLOEXEC);
+    m_wakeupFd.setFlags(O_CLOEXEC);
 }
 
 CServerSocket::~CServerSocket() {
@@ -113,7 +116,7 @@ bool CServerSocket::attempt(const std::string& path) {
 
     listen(m_fd.get(), 100);
 
-    m_fd.setFlags(O_NONBLOCK);
+    m_fd.setFlags(O_NONBLOCK | O_CLOEXEC);
 
     m_success = true;
     m_path    = path;
@@ -343,10 +346,16 @@ int CServerSocket::extractLoopFD() {
         m_exportFd      = CFileDescriptor{pipes[0]};
         m_exportWriteFd = CFileDescriptor{pipes[1]};
 
+        m_exportFd.setFlags(O_CLOEXEC);
+        m_exportWriteFd.setFlags(O_CLOEXEC);
+
         pipe(pipes);
 
         m_exitFd      = CFileDescriptor{pipes[0]};
         m_exitWriteFd = CFileDescriptor{pipes[1]};
+
+        m_exitFd.setFlags(O_CLOEXEC);
+        m_exitWriteFd.setFlags(O_CLOEXEC);
 
         m_threadCanPoll = true;
 

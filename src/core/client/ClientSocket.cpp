@@ -66,7 +66,7 @@ bool CClientSocket::attempt(const std::string& path) {
         return false;
     }
 
-    m_fd.setFlags(O_NONBLOCK);
+    m_fd.setFlags(O_NONBLOCK | O_CLOEXEC);
 
     m_pollfds = {pollfd{
         .fd     = m_fd.get(),
@@ -82,7 +82,7 @@ bool CClientSocket::attempt(const std::string& path) {
 bool CClientSocket::attemptFromFd(const int fd) {
     m_fd = CFileDescriptor{fd};
 
-    m_fd.setFlags(O_NONBLOCK);
+    m_fd.setFlags(O_NONBLOCK | O_CLOEXEC);
 
     m_pollfds = {pollfd{
         .fd     = m_fd.get(),
