@@ -31,7 +31,11 @@ void CServerClient::dispatchFirstPoll() {
 
     // get peer's pid
 
+#if defined(__OpenBSD__)
+    struct sockpeercred cred;
+#else
     ucred     cred;
+#endif
     socklen_t len = sizeof(cred);
 
     if (getsockopt(m_fd.get(), SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1) {

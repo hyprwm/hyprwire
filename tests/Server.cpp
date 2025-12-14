@@ -1,6 +1,7 @@
 #include <hyprwire/hyprwire.hpp>
 #include <print>
 #include <sys/signal.h>
+#include <unistd.h>
 
 #include "generated/test_protocol_v1-server.hpp"
 

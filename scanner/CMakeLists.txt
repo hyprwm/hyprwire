@@ -28,8 +28,15 @@ find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(deps REQUIRED IMPORTED_TARGET pugixml)
 
+find_library(librt rt)
+if("${librt}" MATCHES "librt-NOTFOUND")
+  unset(LIBRT)
+else()
+  set(LIBRT rt)
+endif()
+
 add_executable(hyprwire-scanner main.cpp)
-target_link_libraries(hyprwire-scanner PRIVATE rt Threads::Threads
+target_link_libraries(hyprwire-scanner PRIVATE ${LIBRT} Threads::Threads
                                                PkgConfig::deps)
 
 target_include_directories(hyprwire-scanner
