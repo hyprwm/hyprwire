@@ -1,6 +1,7 @@
 #include <hyprwire/hyprwire.hpp>
 #include <print>
 #include "generated/test_protocol_v1-client.hpp"
+#include <unistd.h>
 
 using namespace Hyprutils::Memory;
 
