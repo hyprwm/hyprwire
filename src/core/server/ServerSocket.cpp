@@ -53,9 +53,6 @@ CServerSocket::CServerSocket() {
 }
 
 CServerSocket::~CServerSocket() {
-    if (!m_success)
-        return;
-
     if (m_pollThread.joinable()) {
         m_threadCanPoll = false;
         write(m_exitWriteFd.get(), "x", 1);
@@ -66,8 +63,10 @@ CServerSocket::~CServerSocket() {
 
     m_fd.reset();
 
-    std::error_code ec;
-    std::filesystem::remove(m_path, ec);
+    if (!m_path.empty()) {
+        std::error_code ec;
+        std::filesystem::remove(m_path, ec);
+    }
 }
 
 bool CServerSocket::attempt(const std::string& path) {
@@ -118,8 +117,6 @@ bool CServerSocket::attempt(const std::string& path) {
     listen(m_fd.get(), 100);
 
     m_fd.setFlags(O_NONBLOCK | O_CLOEXEC);
-
-    m_success = true;
     m_path    = path;
 
     recheckPollFds();
