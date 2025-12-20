@@ -1,3 +1,4 @@
+#include <string_view>
 #include <hyprwire/core/implementation/ClientImpl.hpp>
 #include <hyprwire/core/implementation/Spec.hpp>
 #include <hyprwire/core/implementation/ServerImpl.hpp>

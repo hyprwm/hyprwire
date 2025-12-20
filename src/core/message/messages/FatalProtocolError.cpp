@@ -5,6 +5,7 @@
 #include "../../../helpers/Env.hpp"
 
 #include <stdexcept>
+#include <string_view>
 #include <hyprwire/core/types/MessageMagic.hpp>
 
 using namespace Hyprwire;

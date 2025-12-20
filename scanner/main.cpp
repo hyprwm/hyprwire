@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <ranges>
 #include <algorithm>
+#include <string_view>
 
 #include <pugixml.hpp>
 
