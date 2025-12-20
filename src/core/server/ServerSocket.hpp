@@ -55,7 +55,6 @@ namespace Hyprwire {
         std::mutex                                     m_exportPollMtx;
         bool                                           m_exportPollMtxLocked = false;
 
-        bool                                           m_success         = false;
         bool                                           m_isEmptyListener = false;
         std::string                                    m_path;
     };
