@@ -11,6 +11,7 @@
 
 #include <cstdarg>
 #include <cstring>
+#include <string_view>
 #include <ffi.h>
 
 using namespace Hyprwire;

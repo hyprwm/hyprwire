@@ -2,6 +2,7 @@
 
 #include <hyprutils/memory/SharedPtr.hpp>
 #include <functional>
+#include <string_view>
 
 namespace Hyprwire {
     class IServerClient;
