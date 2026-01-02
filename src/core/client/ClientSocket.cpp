@@ -116,7 +116,23 @@ bool CClientSocket::dispatchEvents(bool block) {
             disconnectOnError();
             return false;
         }
-    } else
+    }
+
+    if (!m_pendingSocketData.empty()) {
+        for (auto& d : m_pendingSocketData) {
+            const auto RET = g_messageParser->handleMessage(d, m_self.lock());
+
+            if (RET != MESSAGE_PARSED_OK) {
+                Debug::log(ERR, "fatal: failed to handle message on wire");
+                disconnectOnError();
+                return false;
+            }
+        }
+
+        m_pendingSocketData.clear();
+    }
+
+    if (m_handshakeDone)
         poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
 
     if (m_pollfds[0].revents & POLLHUP)
@@ -288,9 +304,15 @@ SP<CClientObject> CClientSocket::makeObject(const std::string& protocolName, con
 }
 
 void CClientSocket::waitForObject(SP<CClientObject> x) {
+    m_waitingOnObject = x;
     while (!x->m_id && !m_error) {
         dispatchEvents(true);
     }
+    m_waitingOnObject.reset();
+}
+
+bool CClientSocket::shouldEndReading() {
+    return m_waitingOnObject && m_waitingOnObject->m_id;
 }
 
 void CClientSocket::onGeneric(const CGenericProtocolMessage& msg) {
