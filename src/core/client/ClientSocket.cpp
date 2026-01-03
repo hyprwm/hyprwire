@@ -251,7 +251,7 @@ SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec, uint32_t 
     object->m_protocolName = spec->specName();
     m_objects.emplace_back(object);
 
-    auto bindMessage = CBindProtocolMessage(spec->specName(), object->m_seq, 1);
+    auto bindMessage = CBindProtocolMessage(spec->specName(), object->m_seq, version);
     sendMessage(bindMessage);
 
     waitForObject(object);
