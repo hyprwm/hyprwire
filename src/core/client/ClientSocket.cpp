@@ -119,7 +119,8 @@ bool CClientSocket::dispatchEvents(bool block) {
     }
 
     if (!m_pendingSocketData.empty()) {
-        for (auto& d : m_pendingSocketData) {
+        auto CPY = std::move(m_pendingSocketData);
+        for (auto& d : CPY) {
             const auto RET = g_messageParser->handleMessage(d, m_self.lock());
 
             if (RET != MESSAGE_PARSED_OK) {
@@ -128,8 +129,6 @@ bool CClientSocket::dispatchEvents(bool block) {
                 return false;
             }
         }
-
-        m_pendingSocketData.clear();
     }
 
     if (m_handshakeDone)
