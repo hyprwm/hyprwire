@@ -3,6 +3,7 @@
 #include <hyprwire/core/ClientSocket.hpp>
 #include <hyprutils/os/FileDescriptor.hpp>
 #include "../../helpers/Memory.hpp"
+#include "../socket/SocketHelpers.hpp"
 
 #include <vector>
 #include <sys/poll.h>
@@ -46,14 +47,20 @@ namespace Hyprwire {
         std::vector<pollfd>                            m_pollfds;
         std::vector<SP<CClientObject>>                 m_objects;
 
-        bool                                           m_error         = false;
-        bool                                           m_handshakeDone = false;
+        // this is used when waiting on an object
+        std::vector<SSocketRawParsedMessage> m_pendingSocketData;
+        WP<CClientObject>                    m_waitingOnObject;
+        bool                                 shouldEndReading();
+        //
 
-        std::chrono::steady_clock::time_point          m_handshakeBegin;
+        bool                                  m_error         = false;
+        bool                                  m_handshakeDone = false;
 
-        WP<CClientSocket>                              m_self;
-        uint32_t                                       m_seq = 0;
+        std::chrono::steady_clock::time_point m_handshakeBegin;
 
-        uint32_t                                       m_lastAckdRoundtripSeq = 0;
+        WP<CClientSocket>                     m_self;
+        uint32_t                              m_seq = 0;
+
+        uint32_t                              m_lastAckdRoundtripSeq = 0;
     };
 };
