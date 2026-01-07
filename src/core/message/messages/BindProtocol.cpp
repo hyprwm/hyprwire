@@ -3,6 +3,7 @@
 #include "../MessageParser.hpp"
 #include "../../../helpers/Env.hpp"
 
+#include <cstring>
 #include <stdexcept>
 #include <string_view>
 #include <hyprwire/core/types/MessageMagic.hpp>
@@ -19,7 +20,7 @@ CBindProtocolMessage::CBindProtocolMessage(const std::vector<uint8_t>& data, siz
         if (data.at(offset + 1) != HW_MESSAGE_MAGIC_TYPE_UINT)
             return;
 
-        m_seq = *rc<const uint32_t*>(&data.at(offset + 2));
+        std::memcpy(&m_seq, &data.at(offset + 2), sizeof(m_seq));
 
         if (data.at(offset + 6) != HW_MESSAGE_MAGIC_TYPE_VARCHAR)
             return;
@@ -37,7 +38,7 @@ CBindProtocolMessage::CBindProtocolMessage(const std::vector<uint8_t>& data, siz
         if (data.at(offset + needle) != HW_MESSAGE_MAGIC_TYPE_UINT)
             return;
 
-        m_version = *rc<const uint32_t*>(&data.at(offset + needle + 1));
+        std::memcpy(&m_version, &data.at(offset + needle + 1), sizeof(m_version));
 
         if (!m_version)
             return;
@@ -62,7 +63,7 @@ CBindProtocolMessage::CBindProtocolMessage(const std::string& protocol, uint32_t
         HW_MESSAGE_TYPE_BIND_PROTOCOL, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0,
     };
 
-    *rc<uint32_t*>(&m_data[2]) = seq;
+    std::memcpy(&m_data[2], &seq, sizeof(seq));
 
     m_data.emplace_back(HW_MESSAGE_MAGIC_TYPE_VARCHAR);
 
@@ -71,7 +72,7 @@ CBindProtocolMessage::CBindProtocolMessage(const std::string& protocol, uint32_t
 
     m_data.append_range(std::vector<uint8_t>{HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0});
 
-    *rc<uint32_t*>(&m_data[m_data.size() - 4]) = version;
+    std::memcpy(&m_data[m_data.size() - 4], &version, sizeof(version));
 
     m_data.emplace_back(HW_MESSAGE_MAGIC_END);
 }
