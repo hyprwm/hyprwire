@@ -56,12 +56,12 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     data.emplace_back(HW_MESSAGE_MAGIC_TYPE_OBJECT);
 
     data.resize(data.size() + 4);
-    *rc<uint32_t*>(&data[data.size() - 4]) = m_id;
+    std::memcpy(&data[data.size() - 4], &m_id, sizeof(m_id));
 
     data.emplace_back(HW_MESSAGE_MAGIC_TYPE_UINT);
 
     data.resize(data.size() + 4);
-    *rc<uint32_t*>(&data[data.size() - 4]) = id;
+    std::memcpy(&data[data.size() - 4], &id, sizeof(id));
 
     size_t waitOnSeq = 0;
 
@@ -69,9 +69,10 @@ uint32_t IWireObject::call(uint32_t id, ...) {
         data.emplace_back(HW_MESSAGE_MAGIC_TYPE_SEQ);
 
         data.resize(data.size() + 4);
-        auto selfClient                        = reinterpretPointerCast<CClientObject>(m_self.lock());
-        *rc<uint32_t*>(&data[data.size() - 4]) = ++selfClient->m_client->m_seq;
-        waitOnSeq                              = selfClient->m_client->m_seq;
+        auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
+        uint32_t seqVal = ++selfClient->m_client->m_seq;
+        std::memcpy(&data[data.size() - 4], &seqVal, sizeof(seqVal));
+        waitOnSeq       = selfClient->m_client->m_seq;
     }
 
     for (size_t i = 0; i < params.size(); ++i) {
@@ -79,28 +80,32 @@ uint32_t IWireObject::call(uint32_t id, ...) {
             case HW_MESSAGE_MAGIC_TYPE_UINT: {
                 data.emplace_back(HW_MESSAGE_MAGIC_TYPE_UINT);
                 data.resize(data.size() + 4);
-                *rc<uint32_t*>(&data[data.size() - 4]) = va_arg(va, uint32_t);
+                uint32_t val = va_arg(va, uint32_t);
+                std::memcpy(&data[data.size() - 4], &val, sizeof(val));
                 break;
             }
 
             case HW_MESSAGE_MAGIC_TYPE_INT: {
                 data.emplace_back(HW_MESSAGE_MAGIC_TYPE_INT);
                 data.resize(data.size() + 4);
-                *rc<int32_t*>(&data[data.size() - 4]) = va_arg(va, int32_t);
+                int32_t val = va_arg(va, int32_t);
+                std::memcpy(&data[data.size() - 4], &val, sizeof(val));
                 break;
             }
 
             case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
                 data.emplace_back(HW_MESSAGE_MAGIC_TYPE_OBJECT);
                 data.resize(data.size() + 4);
-                *rc<uint32_t*>(&data[data.size() - 4]) = va_arg(va, uint32_t);
+                uint32_t val = va_arg(va, uint32_t);
+                std::memcpy(&data[data.size() - 4], &val, sizeof(val));
                 break;
             }
 
             case HW_MESSAGE_MAGIC_TYPE_F32: {
                 data.emplace_back(HW_MESSAGE_MAGIC_TYPE_F32);
                 data.resize(data.size() + 4);
-                *rc<float*>(&data[data.size() - 4]) = va_arg(va, double);
+                float val = va_arg(va, double);
+                std::memcpy(&data[data.size() - 4], &val, sizeof(val));
                 break;
             }
 
@@ -126,9 +131,10 @@ uint32_t IWireObject::call(uint32_t id, ...) {
                     case HW_MESSAGE_MAGIC_TYPE_INT:
                     case HW_MESSAGE_MAGIC_TYPE_F32:
                     case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
-                        for (size_t i = 0; i < arrayLen; ++i) {
+                        for (size_t j = 0; j < arrayLen; ++j) {
                             data.resize(data.size() + 4);
-                            *rc<uint32_t*>(&data[data.size() - 4]) = rc<uint32_t*>(arrayData)[i];
+                            uint32_t val = rc<uint32_t*>(arrayData)[j];
+                            std::memcpy(&data[data.size() - 4], &val, sizeof(val));
                         }
                         break;
                     }
@@ -338,32 +344,32 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
         switch (PARAM) {
             case HW_MESSAGE_MAGIC_END: break;
             case HW_MESSAGE_MAGIC_TYPE_UINT: {
-                buf                 = malloc(sizeof(uint32_t));
-                *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);
+                buf = malloc(sizeof(uint32_t));
+                std::memcpy(buf, &data[i + 1], sizeof(uint32_t));
                 i += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_F32: {
-                buf              = malloc(sizeof(float));
-                *rc<float*>(buf) = *rc<const float*>(&data[i + 1]);
+                buf = malloc(sizeof(float));
+                std::memcpy(buf, &data[i + 1], sizeof(float));
                 i += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_INT: {
-                buf                = malloc(sizeof(int32_t));
-                *rc<int32_t*>(buf) = *rc<const int32_t*>(&data[i + 1]);
+                buf = malloc(sizeof(int32_t));
+                std::memcpy(buf, &data[i + 1], sizeof(int32_t));
                 i += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_OBJECT: {
-                buf                 = malloc(sizeof(uint32_t));
-                *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);
+                buf = malloc(sizeof(uint32_t));
+                std::memcpy(buf, &data[i + 1], sizeof(uint32_t));
                 i += 4;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_SEQ: {
-                buf                 = malloc(sizeof(uint32_t));
-                *rc<uint32_t*>(buf) = *rc<const uint32_t*>(&data[i + 1]);
+                buf = malloc(sizeof(uint32_t));
+                std::memcpy(buf, &data[i + 1], sizeof(uint32_t));
                 i += 4;
                 break;
             }
@@ -398,7 +404,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                         otherBuffers.emplace_back(dataPtr);
 
                         for (size_t j = 0; j < arrLen; ++j) {
-                            dataPtr[j] = *rc<const uint32_t*>(&data[i + arrMessageLen]);
+                            std::memcpy(&dataPtr[j], &data[i + arrMessageLen], sizeof(uint32_t));
                             arrMessageLen += 4;
                         }
                         break;

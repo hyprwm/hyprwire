@@ -3,6 +3,7 @@
 #include "../MessageParser.hpp"
 #include "../../../helpers/Env.hpp"
 
+#include <cstring>
 #include <stdexcept>
 #include <hyprwire/core/types/MessageMagic.hpp>
 
@@ -23,7 +24,7 @@ CHandshakeAckMessage::CHandshakeAckMessage(const std::vector<uint8_t>& data, siz
         if (data.at(offset + needle + 4) != HW_MESSAGE_MAGIC_END)
             return;
 
-        m_version = *rc<const uint32_t*>(&data.at(offset + needle));
+        std::memcpy(&m_version, &data.at(offset + needle), sizeof(m_version));
 
         needle += 4;
 
@@ -46,7 +47,7 @@ CHandshakeAckMessage::CHandshakeAckMessage(uint32_t version) {
 
     m_data.resize(6);
 
-    *rc<uint32_t*>(&m_data[2]) = version;
+    std::memcpy(&m_data[2], &version, sizeof(version));
 
     m_data.emplace_back(HW_MESSAGE_MAGIC_END);
 }

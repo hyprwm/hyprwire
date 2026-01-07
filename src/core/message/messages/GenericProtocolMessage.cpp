@@ -4,6 +4,7 @@
 #include "../../../helpers/Env.hpp"
 #include "../../../helpers/Log.hpp"
 
+#include <cstring>
 #include <stdexcept>
 #include <hyprwire/core/types/MessageMagic.hpp>
 
@@ -19,12 +20,12 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
         if (data.at(offset + 1) != HW_MESSAGE_MAGIC_TYPE_OBJECT)
             return;
 
-        m_object = *rc<const uint32_t*>(&data.at(offset + 2));
+        std::memcpy(&m_object, &data.at(offset + 2), sizeof(m_object));
 
         if (data.at(offset + 6) != HW_MESSAGE_MAGIC_TYPE_UINT)
             return;
 
-        m_method = *rc<const uint32_t*>(&data.at(offset + 7));
+        std::memcpy(&m_method, &data.at(offset + 7), sizeof(m_method));
 
         size_t i = 11;
         while (data.at(offset + i) != HW_MESSAGE_MAGIC_END) {
