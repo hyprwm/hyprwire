@@ -33,5 +33,5 @@ namespace Hyprwire {
         size_t parseSingleMessage(SSocketRawParsedMessage& data, size_t off, SP<CClientSocket> client);
     };
 
-    inline UP<CMessageParser> g_messageParser;
+    inline UP<CMessageParser> g_messageParser = makeUnique<CMessageParser>();
 };
