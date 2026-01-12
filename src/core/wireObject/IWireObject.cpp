@@ -69,10 +69,10 @@ uint32_t IWireObject::call(uint32_t id, ...) {
         data.emplace_back(HW_MESSAGE_MAGIC_TYPE_SEQ);
 
         data.resize(data.size() + 4);
-        auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
-        uint32_t seqVal = ++selfClient->m_client->m_seq;
+        auto     selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
+        uint32_t seqVal     = ++selfClient->m_client->m_seq;
         std::memcpy(&data[data.size() - 4], &seqVal, sizeof(seqVal));
-        waitOnSeq       = selfClient->m_client->m_seq;
+        waitOnSeq = selfClient->m_client->m_seq;
     }
 
     for (size_t i = 0; i < params.size(); ++i) {

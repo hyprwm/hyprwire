@@ -198,7 +198,17 @@ void CClientSocket::sendMessage(const IMessage& message) {
         }
     }
 
-    sendmsg(m_fd.get(), &msg, 0);
+    while (m_fd.isValid()) {
+        int ret = sendmsg(m_fd.get(), &msg, 0);
+        if (ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
+            pollfd pfd = {
+                .fd     = m_fd.get(),
+                .events = POLLOUT | POLLWRBAND,
+            };
+            poll(&pfd, 1, -1);
+        } else
+            break;
+    }
 }
 
 int CClientSocket::extractLoopFD() {

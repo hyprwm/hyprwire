@@ -117,7 +117,7 @@ bool CServerSocket::attempt(const std::string& path) {
     listen(m_fd.get(), 100);
 
     m_fd.setFlags(O_NONBLOCK | O_CLOEXEC);
-    m_path    = path;
+    m_path = path;
 
     recheckPollFds();
 
