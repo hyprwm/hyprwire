@@ -56,3 +56,11 @@ SP<IClientSocket> CClientObject::clientSock() {
         return nullptr;
     return m_client.lock();
 }
+
+void CClientObject::waitOnSelf() {
+    if (m_id || !m_client)
+        return;
+
+    TRACE(Debug::log(TRACE, "Call on object without an id! Waiting on seq {}", m_seq));
+    rc<CClientSocket*>(m_client.get())->waitForObject(m_self.lock());
+}

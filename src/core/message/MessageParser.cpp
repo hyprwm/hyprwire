@@ -51,13 +51,6 @@ eMessageParsingResult CMessageParser::handleMessage(SSocketRawParsedMessage& dat
             return MESSAGE_PARSED_ERROR;
 
         needle += ret;
-
-        if (client->shouldEndReading()) {
-            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -- handleMessage: End read early", client->m_fd.get(), steadyMillis()));
-            data.data = std::vector<uint8_t>{data.data.begin() + needle, data.data.end()};
-            client->m_pendingSocketData.emplace_back(std::move(data));
-            return MESSAGE_PARSED_OK;
-        }
     }
 
     if (!data.fds.empty())

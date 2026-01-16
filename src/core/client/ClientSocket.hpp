@@ -4,6 +4,7 @@
 #include <hyprutils/os/FileDescriptor.hpp>
 #include "../../helpers/Memory.hpp"
 #include "../socket/SocketHelpers.hpp"
+#include "../wireObject/IWireObject.hpp"
 
 #include <vector>
 #include <sys/poll.h>
@@ -37,7 +38,7 @@ namespace Hyprwire {
         void                                           onSeq(uint32_t seq, uint32_t id);
         void                                           onGeneric(const CGenericProtocolMessage& msg);
         SP<CClientObject>                              makeObject(const std::string& protocolName, const std::string& objectName, uint32_t seq);
-        void                                           waitForObject(SP<CClientObject>);
+        void                                           waitForObject(SP<IWireObject>);
 
         void                                           disconnectOnError();
 
@@ -48,9 +49,7 @@ namespace Hyprwire {
         std::vector<SP<CClientObject>>                 m_objects;
 
         // this is used when waiting on an object
-        std::vector<SSocketRawParsedMessage> m_pendingSocketData;
-        WP<CClientObject>                    m_waitingOnObject;
-        bool                                 shouldEndReading();
+        WP<IWireObject> m_waitingOnObject;
         //
 
         bool                                  m_error         = false;

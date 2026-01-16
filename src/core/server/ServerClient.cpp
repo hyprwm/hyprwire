@@ -165,9 +165,11 @@ void CServerClient::onGeneric(const CGenericProtocolMessage& msg) {
     for (const auto& o : m_objects) {
         if (o->m_id == msg.m_object) {
             o->called(msg.m_method, msg.m_dataSpan, msg.m_fds);
-            break;
+            return;
         }
     }
+
+    Debug::log(WARN, "[{} @ {:.3f}] -> Generic message not handled. No object with id {}!", m_fd.get(), steadyMillis(), msg.m_object);
 }
 
 int CServerClient::getPID() {

@@ -30,6 +30,7 @@ namespace Hyprwire {
 
         // only for client objects
         virtual Hyprutils::Memory::CSharedPointer<IClientSocket> clientSock();
+        virtual void                                             waitOnSelf();
 
       protected:
         IObject() = default;

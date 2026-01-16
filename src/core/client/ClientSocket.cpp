@@ -9,8 +9,9 @@
 #include "../message/messages/GenericProtocolMessage.hpp"
 #include "../message/messages/RoundtripRequest.hpp"
 #include "../socket/SocketHelpers.hpp"
-#include "ServerSpec.hpp"
+#include "../wireObject/IWireObject.hpp"
 #include "ClientObject.hpp"
+#include "ServerSpec.hpp"
 
 #include <hyprwire/core/implementation/Object.hpp>
 #include <hyprwire/core/implementation/Types.hpp>
@@ -115,19 +116,6 @@ bool CClientSocket::dispatchEvents(bool block) {
             Debug::log(ERR, "handshake error: timed out");
             disconnectOnError();
             return false;
-        }
-    }
-
-    if (!m_pendingSocketData.empty()) {
-        auto CPY = std::move(m_pendingSocketData);
-        for (auto& d : CPY) {
-            const auto RET = g_messageParser->handleMessage(d, m_self.lock());
-
-            if (RET != MESSAGE_PARSED_OK) {
-                Debug::log(ERR, "fatal: failed to handle message on wire");
-                disconnectOnError();
-                return false;
-            }
         }
     }
 
@@ -312,7 +300,7 @@ SP<CClientObject> CClientSocket::makeObject(const std::string& protocolName, con
     return object;
 }
 
-void CClientSocket::waitForObject(SP<CClientObject> x) {
+void CClientSocket::waitForObject(SP<IWireObject> x) {
     m_waitingOnObject = x;
     while (!x->m_id && !m_error) {
         dispatchEvents(true);
@@ -320,17 +308,15 @@ void CClientSocket::waitForObject(SP<CClientObject> x) {
     m_waitingOnObject.reset();
 }
 
-bool CClientSocket::shouldEndReading() {
-    return m_waitingOnObject && m_waitingOnObject->m_id;
-}
-
 void CClientSocket::onGeneric(const CGenericProtocolMessage& msg) {
     for (const auto& o : m_objects) {
         if (o->m_id == msg.m_object) {
             o->called(msg.m_method, msg.m_dataSpan, msg.m_fds);
-            break;
+            return;
         }
     }
+
+    Debug::log(WARN, "[{} @ {:.3f}] -> Generic message not handled. No object with id {}!", m_fd.get(), steadyMillis(), msg.m_object);
 }
 
 SP<IObject> CClientSocket::objectForId(uint32_t id) {
