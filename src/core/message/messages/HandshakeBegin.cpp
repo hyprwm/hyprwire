@@ -3,6 +3,7 @@
 #include "../MessageParser.hpp"
 #include "../../../helpers/Env.hpp"
 
+#include <cstring>
 #include <stdexcept>
 #include <hyprwire/core/types/MessageMagic.hpp>
 
@@ -30,7 +31,7 @@ CHandshakeBeginMessage::CHandshakeBeginMessage(const std::vector<uint8_t>& data,
         m_versionsSupported.resize(nVers);
 
         for (size_t i = 0; i < nVers; ++i) {
-            m_versionsSupported.at(i) = *rc<const uint32_t*>(&data.at((offset + (i * sizeof(uint32_t)) + needle)));
+            std::memcpy(&m_versionsSupported[i], &data.at(offset + needle + (i * sizeof(uint32_t))), sizeof(m_versionsSupported[0]));
         }
 
         needle += (nVers * sizeof(uint32_t));
