@@ -44,13 +44,19 @@ eMessageParsingResult CMessageParser::handleMessage(SSocketRawParsedMessage& dat
 }
 
 eMessageParsingResult CMessageParser::handleMessage(SSocketRawParsedMessage& data, SP<CClientSocket> client) {
-    size_t needle = 0;
+    std::vector<CGenericProtocolMessage> genericMessages;
+
+    size_t                               needle = 0;
     while (needle < data.data.size()) {
-        auto ret = parseSingleMessage(data, needle, client);
+        auto ret = parseSingleMessage(data, needle, client, genericMessages);
         if (ret == 0)
             return MESSAGE_PARSED_ERROR;
 
         needle += ret;
+    }
+
+    for (const auto& msg : genericMessages) {
+        client->onGeneric(msg);
     }
 
     if (!data.fds.empty())
@@ -167,7 +173,7 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
     return 0;
 }
 
-size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t off, SP<CClientSocket> client) {
+size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t off, SP<CClientSocket> client, std::vector<CGenericProtocolMessage>& genericMessages) {
     auto& data = raw.data;
 
     switch (sc<eMessageType>(data.at(off))) {
@@ -232,15 +238,15 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
             return msg.m_len;
         }
         case HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE: {
-            auto msg = CGenericProtocolMessage(data, raw.fds, off);
+            genericMessages.emplace_back(CGenericProtocolMessage(data, raw.fds, off));
+            auto& msg = genericMessages.back();
+
             if (!msg.m_len) {
                 Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE)", client->m_fd.get());
                 return 0;
             }
 
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg.parseData()));
-
-            client->onGeneric(msg);
 
             return msg.m_len;
         }

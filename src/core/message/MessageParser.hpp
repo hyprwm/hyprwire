@@ -9,6 +9,7 @@
 namespace Hyprwire {
     class CServerClient;
     class CClientSocket;
+    class CGenericProtocolMessage;
 
     enum eMessageParsingResult : uint8_t {
         MESSAGE_PARSED_OK         = 0,
@@ -30,7 +31,7 @@ namespace Hyprwire {
 
       private:
         size_t parseSingleMessage(SSocketRawParsedMessage& data, size_t off, SP<CServerClient> client);
-        size_t parseSingleMessage(SSocketRawParsedMessage& data, size_t off, SP<CClientSocket> client);
+        size_t parseSingleMessage(SSocketRawParsedMessage& data, size_t off, SP<CClientSocket> client, std::vector<CGenericProtocolMessage>& genericMessages);
     };
 
     inline UP<CMessageParser> g_messageParser = makeUnique<CMessageParser>();
