@@ -44,6 +44,6 @@ CNewObjectMessage::CNewObjectMessage(uint32_t seq, uint32_t id) {
         HW_MESSAGE_TYPE_NEW_OBJECT, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0, HW_MESSAGE_MAGIC_END,
     };
 
-    std::memcpy(&m_data[2], &seq, sizeof(seq));
+    std::memcpy(&m_data[2], &id, sizeof(id));
     std::memcpy(&m_data[7], &seq, sizeof(seq));
 }
