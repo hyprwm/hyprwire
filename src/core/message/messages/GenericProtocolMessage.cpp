@@ -118,3 +118,9 @@ CGenericProtocolMessage::CGenericProtocolMessage(std::vector<uint8_t>&& data, st
 const std::vector<int>& CGenericProtocolMessage::fds() const {
     return m_fds;
 }
+
+void CGenericProtocolMessage::resolveSeq(uint32_t id) {
+    m_object = id;
+    if (m_data.size() > 3)
+        m_data[2] = id;
+}

@@ -44,19 +44,13 @@ eMessageParsingResult CMessageParser::handleMessage(SSocketRawParsedMessage& dat
 }
 
 eMessageParsingResult CMessageParser::handleMessage(SSocketRawParsedMessage& data, SP<CClientSocket> client) {
-    std::vector<CGenericProtocolMessage> genericMessages;
-
-    size_t                               needle = 0;
+    size_t needle = 0;
     while (needle < data.data.size()) {
-        auto ret = parseSingleMessage(data, needle, client, genericMessages);
+        auto ret = parseSingleMessage(data, needle, client);
         if (ret == 0)
             return MESSAGE_PARSED_ERROR;
 
         needle += ret;
-    }
-
-    for (const auto& msg : genericMessages) {
-        client->onGeneric(msg);
     }
 
     if (!data.fds.empty())
@@ -173,7 +167,7 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
     return 0;
 }
 
-size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t off, SP<CClientSocket> client, std::vector<CGenericProtocolMessage>& genericMessages) {
+size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t off, SP<CClientSocket> client) {
     auto& data = raw.data;
 
     switch (sc<eMessageType>(data.at(off))) {
@@ -238,13 +232,14 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
             return msg.m_len;
         }
         case HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE: {
-            genericMessages.emplace_back(CGenericProtocolMessage(data, raw.fds, off));
-            auto& msg = genericMessages.back();
+            auto msg = CGenericProtocolMessage(data, raw.fds, off);
 
             if (!msg.m_len) {
                 Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE)", client->m_fd.get());
                 return 0;
             }
+
+            client->onGeneric(msg);
 
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg.parseData()));
 

@@ -29,6 +29,7 @@ namespace Hyprwire {
         virtual SP<IProtocolSpec>                      getSpec(const std::string& name);
         virtual SP<IObject>                            bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version);
         virtual SP<IObject>                            objectForId(uint32_t id);
+        virtual SP<IObject>                            objectForSeq(uint32_t id);
         virtual void                                   roundtrip();
         virtual bool                                   isHandshakeDone();
 
@@ -49,7 +50,8 @@ namespace Hyprwire {
         std::vector<SP<CClientObject>>                 m_objects;
 
         // this is used when waiting on an object
-        WP<IWireObject> m_waitingOnObject;
+        WP<IWireObject>                      m_waitingOnObject;
+        std::vector<CGenericProtocolMessage> m_pendingOutgoing;
         //
 
         bool                                  m_error         = false;

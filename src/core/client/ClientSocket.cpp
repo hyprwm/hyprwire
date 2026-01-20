@@ -149,6 +149,21 @@ bool CClientSocket::dispatchEvents(bool block) {
         return false;
     }
 
+    std::erase_if(m_pendingOutgoing, [this](auto& msg) {
+        auto obj = objectForSeq(msg.m_dependsOnSeq);
+        if (!obj)
+            return true;
+
+        auto wObj = reinterpretPointerCast<CClientObject>(obj);
+        if (!wObj->m_id)
+            return false;
+
+        msg.resolveSeq(wObj->m_id);
+        TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> Handle defered: {}", m_fd.get(), steadyMillis(), msg.parseData()));
+        sendMessage(msg);
+        return true;
+    });
+
     return !m_error;
 }
 
@@ -244,9 +259,11 @@ void CClientSocket::onSeq(uint32_t seq, uint32_t id) {
     for (const auto& c : m_objects) {
         if (c->m_seq == seq) {
             c->m_id = id;
-            break;
+            return;
         }
     }
+
+    Debug::log(WARN, "[{} @ {:.3f}] -> No object for sequence {} (Would be id {}).!", m_fd.get(), steadyMillis(), seq, id);
 }
 
 SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version) {
@@ -322,6 +339,14 @@ void CClientSocket::onGeneric(const CGenericProtocolMessage& msg) {
 SP<IObject> CClientSocket::objectForId(uint32_t id) {
     for (const auto& o : m_objects) {
         if (o->m_id == id)
+            return o;
+    }
+    return nullptr;
+}
+
+SP<IObject> CClientSocket::objectForSeq(uint32_t seq) {
+    for (const auto& o : m_objects) {
+        if (o->m_seq == seq)
             return o;
     }
     return nullptr;

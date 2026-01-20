@@ -21,8 +21,6 @@ using namespace Hyprutils::Utils;
 IWireObject::~IWireObject() = default;
 
 uint32_t IWireObject::call(uint32_t id, ...) {
-    waitOnSelf();
-
     const auto METHODS = methodsOut();
     if (METHODS.size() <= id) {
         const auto MSG = std::format("core protocol error: invalid method {} for object {}", id, m_id);
@@ -173,13 +171,22 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     data.emplace_back(HW_MESSAGE_MAGIC_END);
 
     auto msg = CGenericProtocolMessage(std::move(data), std::move(fds));
-    sendMessage(msg);
 
-    if (returnSeq) {
+    if (!m_id && !server()) {
         // we are a client
-        auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
-        auto obj        = selfClient->m_client->makeObject(m_protocolName, method.returnsType, returnSeq);
-        return obj->m_id;
+        // RASSERT(!returnSeq, "Didn't expect returnSeq without m_validId on the client object would be possible. This is a Bug! FIXME!");
+
+        msg.m_dependsOnSeq = m_seq;
+        auto selfClient    = reinterpretPointerCast<CClientObject>(m_self.lock());
+        selfClient->m_client->m_pendingOutgoing.emplace_back(std::move(msg));
+    } else {
+        sendMessage(msg);
+        if (returnSeq) {
+            // we are a client
+            auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
+            auto obj        = selfClient->m_client->makeObject(m_protocolName, method.returnsType, returnSeq);
+            return returnSeq;
+        }
     }
 
     return 0;

@@ -37,7 +37,3 @@ void IObject::setOnDestroy(std::function<void()>&& fn) {
 void IObject::error(uint32_t id, const std::string_view& message) {
     ;
 }
-
-void IObject::waitOnSelf() {
-    ;
-}

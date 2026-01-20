@@ -165,6 +165,8 @@ static void client(int serverFd) {
 
     while (!quitt)
         sock->dispatchEvents(true);
+
+    sock->roundtrip();
 }
 
 int main(int argc, char** argv, char** envp) {

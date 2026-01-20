@@ -22,7 +22,6 @@ namespace Hyprwire {
         virtual Hyprutils::Memory::CSharedPointer<IServerClient> client();
         virtual Hyprutils::Memory::CSharedPointer<IObject>       self();
         virtual Hyprutils::Memory::CSharedPointer<IClientSocket> clientSock();
-        virtual void                                             waitOnSelf();
         virtual bool                                             server();
 
         WP<CClientSocket>                                        m_client;
