@@ -12,6 +12,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
+#include <cstring>
+#include <cerrno>
 #include <unistd.h>
 
 #include <filesystem>
@@ -43,13 +45,16 @@ SP<IServerSocket> IServerSocket::open() {
 
 CServerSocket::CServerSocket() {
     int pipes[2];
-    pipe(pipes);
+    if (pipe(pipes) < 0)
+      Debug::log(ERR, "[- @ {:.3f}] Open wakeup pipes: {}", steadyMillis(), strerror(errno));
 
-    m_wakeupFd      = CFileDescriptor{pipes[0]};
-    m_wakeupWriteFd = CFileDescriptor{pipes[1]};
+    else {
+      m_wakeupFd      = CFileDescriptor{pipes[0]};
+      m_wakeupWriteFd = CFileDescriptor{pipes[1]};
 
-    m_wakeupWriteFd.setFlags(O_CLOEXEC);
-    m_wakeupFd.setFlags(O_CLOEXEC);
+      m_wakeupWriteFd.setFlags(O_CLOEXEC);
+      m_wakeupFd.setFlags(O_CLOEXEC);
+    }
 }
 
 CServerSocket::~CServerSocket() {
@@ -57,7 +62,7 @@ CServerSocket::~CServerSocket() {
         m_threadCanPoll = false;
         m_pollEvent     = false;
         m_pollEventCV.notify_all();
-        write(m_exitWriteFd.get(), "x", 1);
+        sc<void>(write(m_exitWriteFd.get(), "x", 1));
         m_pollThread.join();
     }
 
@@ -184,7 +189,7 @@ void CServerSocket::clearFd(const Hyprutils::OS::CFileDescriptor& fd) {
         poll(&pfd, 1, 0);
 
         if (pfd.revents & POLLIN) {
-            read(fd.get(), buf, 127);
+            sc<void>(read(fd.get(), buf, 127));
             continue;
         }
 
@@ -212,7 +217,7 @@ SP<IServerClient> CServerSocket::addClient(int fd) {
     recheckPollFds();
 
     // wake up any poller
-    write(m_wakeupWriteFd.get(), "x", 1);
+    sc<void>(write(m_wakeupWriteFd.get(), "x", 1));
 
     return x;
 }
@@ -338,7 +343,10 @@ void CServerSocket::dispatchClient(SP<CServerClient> client) {
 int CServerSocket::extractLoopFD() {
     if (!m_exportFd.isValid()) {
         int pipes[2];
-        pipe(pipes);
+        if (pipe(pipes) < 0) {
+            Debug::log(ERR, "[- @ {:.3f}] Failed to export pipes for poll thread: {}", steadyMillis(), strerror(errno));
+            return -1;
+        }
 
         m_exportFd      = CFileDescriptor{pipes[0]};
         m_exportWriteFd = CFileDescriptor{pipes[1]};
@@ -346,7 +354,10 @@ int CServerSocket::extractLoopFD() {
         m_exportFd.setFlags(O_CLOEXEC);
         m_exportWriteFd.setFlags(O_CLOEXEC);
 
-        pipe(pipes);
+        if (pipe(pipes) < 0) {
+            Debug::log(ERR, "[- @ {:.3f}] Failed to exit pipes for poll thread: {}", steadyMillis(), strerror(errno));
+            return -1;
+        }
 
         m_exitFd      = CFileDescriptor{pipes[0]};
         m_exitWriteFd = CFileDescriptor{pipes[1]};
@@ -400,7 +411,7 @@ int CServerSocket::extractLoopFD() {
 
                 m_pollEvent = true;
 
-                write(m_exportWriteFd.get(), "x", 1);
+                sc<void>(write(m_exportWriteFd.get(), "x", 1));
             }
         });
     }

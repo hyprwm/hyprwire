@@ -12,7 +12,7 @@ ffi_type* Hyprwire::FFI::ffiTypeFrom(eMessageMagic magic) {
         case HW_MESSAGE_MAGIC_TYPE_F32: return &ffi_type_float;
         case HW_MESSAGE_MAGIC_TYPE_VARCHAR:
         case HW_MESSAGE_MAGIC_TYPE_ARRAY: return &ffi_type_pointer;
-        case HW_MESSAGE_MAGIC_END: return nullptr;
+        default: return nullptr;
     }
 
     return nullptr;

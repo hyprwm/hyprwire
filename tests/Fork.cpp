@@ -32,7 +32,7 @@ static SP<CTestProtocolV1Impl>     spec = makeShared<CTestProtocolV1Impl>(TEST_P
     manager->setSendMessage([](const char* msg) { std::println("Recvd message: {}", msg); });
     manager->setSendMessageFd([](int fd) {
         char msgbuf[6] = {0};
-        read(fd, msgbuf, 5);
+        sc<void>(read(fd, msgbuf, 5));
         std::println("Recvd fd {} with data: {}", fd, msgbuf);
     });
     manager->setSendMessageArray([](std::vector<const char*> data) {
@@ -76,12 +76,14 @@ static SP<CTestProtocolV1Impl>     spec = makeShared<CTestProtocolV1Impl>(TEST_P
 static void                        server(int clientFd) {
     serverSock = Hyprwire::IServerSocket::open();
     pollfd pfd = {.fd = clientFd, .events = POLLIN, .revents = 0};
+
+    serverSock->addImplementation(spec);
+
+    // This is not requried, but it is nice to have
     if (!(poll(&pfd, 1, 1000) > 0 && (pfd.revents & POLLIN))) {
         std::println("Failed to wait for client hello");
         exit(1);
     }
-
-    serverSock->addImplementation(spec);
 
     if (serverSock->addClient(clientFd) == nullptr) {
         std::println("Failed to add clientFd to the server socket!");
@@ -139,8 +141,8 @@ static void client(int serverFd) {
     std::println("Bound!");
 
     int pips[2];
-    pipe(pips);
-    write(pips[1], "pipe!", 5);
+    sc<void>(pipe(pips));
+    sc<void>(write(pips[1], "pipe!", 5));
 
     std::println("Will send fd {}", pips[0]);
 

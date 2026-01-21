@@ -48,6 +48,7 @@ static std::pair<std::string, size_t> formatPrimitiveType(const std::span<const 
             auto ptr           = rc<const char*>(&s[intLen]);
             return {std::format("\"{}\"", std::string_view{ptr, len}), len + intLen};
         }
+        default: break;
     }
 
     return {"", 0};
@@ -144,6 +145,7 @@ std::string IMessage::parseData() const {
                 result += "<fd>";
                 break;
             }
+            default: break;
         }
 
         result += ", ";
