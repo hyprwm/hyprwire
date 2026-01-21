@@ -121,6 +121,6 @@ const std::vector<int>& CGenericProtocolMessage::fds() const {
 
 void CGenericProtocolMessage::resolveSeq(uint32_t id) {
     m_object = id;
-    if (m_data.size() > 3)
+    if (m_data.size() > 2)
         m_data[2] = id;
 }
