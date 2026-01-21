@@ -54,7 +54,7 @@ namespace Hyprwire {
         std::thread                                    m_pollThread;
         std::recursive_mutex                           m_pollmtx;
         std::mutex                                     m_exportPollMtx;
-        std::condition_variable                        m_pollEventCV;
+        std::condition_variable                        m_pollEventHandledCV;
         bool                                           m_pollEvent = false;
 
         bool                                           m_isEmptyListener = false;

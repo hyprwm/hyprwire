@@ -46,14 +46,14 @@ SP<IServerSocket> IServerSocket::open() {
 CServerSocket::CServerSocket() {
     int pipes[2];
     if (pipe(pipes) < 0)
-      Debug::log(ERR, "[- @ {:.3f}] Open wakeup pipes: {}", steadyMillis(), strerror(errno));
+        Debug::log(ERR, "[- @ {:.3f}] Open wakeup pipes: {}", steadyMillis(), strerror(errno));
 
     else {
-      m_wakeupFd      = CFileDescriptor{pipes[0]};
-      m_wakeupWriteFd = CFileDescriptor{pipes[1]};
+        m_wakeupFd      = CFileDescriptor{pipes[0]};
+        m_wakeupWriteFd = CFileDescriptor{pipes[1]};
 
-      m_wakeupWriteFd.setFlags(O_CLOEXEC);
-      m_wakeupFd.setFlags(O_CLOEXEC);
+        m_wakeupWriteFd.setFlags(O_CLOEXEC);
+        m_wakeupFd.setFlags(O_CLOEXEC);
     }
 }
 
@@ -61,8 +61,8 @@ CServerSocket::~CServerSocket() {
     if (m_pollThread.joinable()) {
         m_threadCanPoll = false;
         m_pollEvent     = false;
-        m_pollEventCV.notify_all();
         sc<void>(write(m_exitWriteFd.get(), "x", 1));
+        m_pollEventHandledCV.notify_all();
         m_pollThread.join();
     }
 
@@ -172,7 +172,7 @@ bool CServerSocket::dispatchEvents(bool block) {
 
     std::unique_lock lk(m_exportPollMtx);
     m_pollEvent = false;
-    m_pollEventCV.notify_all();
+    m_pollEventHandledCV.notify_all();
 
     return true;
 }
@@ -371,13 +371,6 @@ int CServerSocket::extractLoopFD() {
 
         m_pollThread = std::thread([this] {
             while (m_threadCanPoll) {
-
-                std::unique_lock lk(m_exportPollMtx);
-                m_pollEventCV.wait_for(lk, std::chrono::milliseconds(5000), [this] { return !m_pollEvent; });
-
-                if (!m_threadCanPoll)
-                    break;
-
                 m_pollmtx.lock();
 
                 std::vector<pollfd> pollfds;
@@ -409,9 +402,17 @@ int CServerSocket::extractLoopFD() {
 
                 poll(pollfds.data(), pollfds.size(), -1);
 
-                m_pollEvent = true;
+                if (!m_threadCanPoll)
+                    return;
 
-                sc<void>(write(m_exportWriteFd.get(), "x", 1));
+                {
+                    std::unique_lock lk(m_exportPollMtx);
+
+                    m_pollEvent = true;
+                    sc<void>(write(m_exportWriteFd.get(), "x", 1));
+
+                    m_pollEventHandledCV.wait_for(lk, std::chrono::milliseconds(5000), [this] { return !m_pollEvent; });
+                }
             }
         });
     }
