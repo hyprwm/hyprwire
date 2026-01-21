@@ -55,9 +55,9 @@ CServerSocket::CServerSocket() {
 CServerSocket::~CServerSocket() {
     if (m_pollThread.joinable()) {
         m_threadCanPoll = false;
+        m_pollEvent     = false;
+        m_pollEventCV.notify_all();
         write(m_exitWriteFd.get(), "x", 1);
-        if (m_exportPollMtxLocked)
-            m_exportPollMtx.unlock();
         m_pollThread.join();
     }
 
@@ -165,10 +165,9 @@ bool CServerSocket::dispatchEvents(bool block) {
 
     m_pollmtx.unlock();
 
-    if (m_exportPollMtxLocked) {
-        m_exportPollMtx.unlock();
-        m_exportPollMtxLocked = false;
-    }
+    std::unique_lock lk(m_exportPollMtx);
+    m_pollEvent = false;
+    m_pollEventCV.notify_all();
 
     return true;
 }
@@ -362,8 +361,8 @@ int CServerSocket::extractLoopFD() {
         m_pollThread = std::thread([this] {
             while (m_threadCanPoll) {
 
-                m_exportPollMtx.lock(); // wait for dispatch to unlock
-                m_exportPollMtxLocked = true;
+                std::unique_lock lk(m_exportPollMtx);
+                m_pollEventCV.wait_for(lk, std::chrono::milliseconds(5000), [this] { return !m_pollEvent; });
 
                 if (!m_threadCanPoll)
                     break;
@@ -396,7 +395,10 @@ int CServerSocket::extractLoopFD() {
                 }
 
                 m_pollmtx.unlock();
+
                 poll(pollfds.data(), pollfds.size(), -1);
+
+                m_pollEvent = true;
 
                 write(m_exportWriteFd.get(), "x", 1);
             }
