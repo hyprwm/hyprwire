@@ -18,6 +18,11 @@ int                                main(int argc, char** argv, char** envp) {
     const auto XDG_RUNTIME_DIR = getenv("XDG_RUNTIME_DIR");
     sock                       = Hyprwire::IClientSocket::open(XDG_RUNTIME_DIR + std::string{"/test-hw.sock"});
 
+    if (!sock) {
+        std::println("err: failed to open client socket");
+        return 1;
+    }
+
     sock->addImplementation(impl);
 
     if (!sock->waitForHandshake()) {
