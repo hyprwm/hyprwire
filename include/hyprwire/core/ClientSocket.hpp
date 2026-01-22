@@ -52,11 +52,6 @@ namespace Hyprwire {
         virtual Hyprutils::Memory::CSharedPointer<IObject> objectForId(uint32_t id) = 0;
 
         /*
-            Get an object from a seq
-        */
-        virtual Hyprutils::Memory::CSharedPointer<IObject> objectForSeq(uint32_t seq) = 0;
-
-        /*
             Perform a roundtrip
         */
         virtual void roundtrip() = 0;
@@ -65,6 +60,11 @@ namespace Hyprwire {
             Check if handshake has been estabilished
         */
         virtual bool isHandshakeDone() = 0;
+
+        /*
+            Get an object from a sequence number
+        */
+        virtual Hyprutils::Memory::CSharedPointer<IObject> objectForSeq(uint32_t seq) = 0;
 
       protected:
         IClientSocket() = default;

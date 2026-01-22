@@ -159,7 +159,7 @@ bool CClientSocket::dispatchEvents(bool block) {
             return false;
 
         msg.resolveSeq(wObj->m_id);
-        TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> Handle defered: {}", m_fd.get(), steadyMillis(), msg.parseData()));
+        TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> Handle deferred: {}", m_fd.get(), steadyMillis(), msg.parseData()));
         sendMessage(msg);
         return true;
     });
