@@ -29,7 +29,7 @@ namespace Hyprwire {
         virtual SP<IProtocolSpec>                      getSpec(const std::string& name);
         virtual SP<IObject>                            bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version);
         virtual SP<IObject>                            objectForId(uint32_t id);
-        virtual SP<IObject>                            objectForSeq(uint32_t id);
+        virtual SP<IObject>                            objectForSeq(uint32_t seq);
         virtual void                                   roundtrip();
         virtual bool                                   isHandshakeDone();
 
