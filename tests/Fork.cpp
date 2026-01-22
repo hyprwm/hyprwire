@@ -20,11 +20,32 @@ static void              sigHandler(int sig) {
     quitt = true;
 }
 
-static SP<CMyManagerV1Object>      manager;
-static SP<CMyObjectV1Object>       object;
-static SP<Hyprwire::IServerSocket> serverSock;
-static SP<CCTestProtocolV1Impl>    impl = makeShared<CCTestProtocolV1Impl>(TEST_PROTOCOL_VERSION);
-static SP<CTestProtocolV1Impl>     spec = makeShared<CTestProtocolV1Impl>(TEST_PROTOCOL_VERSION, [](SP<Hyprwire::IObject> obj) {
+static SP<CMyManagerV1Object>             manager;
+static std::vector<SP<CMyObjectV1Object>> objects;
+static SP<Hyprwire::IServerSocket>        serverSock;
+static SP<CCTestProtocolV1Impl>           impl = makeShared<CCTestProtocolV1Impl>(TEST_PROTOCOL_VERSION);
+
+static void                               makeObject(uint32_t seq) {
+    auto object = makeShared<CMyObjectV1Object>(serverSock->createObject(manager->getObject()->client(), manager->getObject(), "my_object_v1", seq));
+
+    object->sendSendMessage("Hello object");
+
+    object->setMakeObject(makeObject);
+    object->setSendMessage([](const char* msg) { std::println("Object says hello: {}", msg); });
+    object->setSendEnum([wobj = WP<CMyObjectV1Object>{object}](testProtocolV1MyEnum e) {
+        std::println("Object sent enum: {}", sc<uint32_t>(e));
+
+        std::println("Erroring out the client!");
+
+        quitt = true;
+        if (wobj)
+            wobj->error(TEST_PROTOCOL_V1_MY_ERROR_ENUM_ERROR_IMPORTANT, "Important error occurred!");
+    });
+
+    objects.emplace_back(std::move(object));
+}
+
+static SP<CTestProtocolV1Impl> spec = makeShared<CTestProtocolV1Impl>(TEST_PROTOCOL_VERSION, [](SP<Hyprwire::IObject> obj) {
     std::println("Object bound XD");
     manager = makeShared<CMyManagerV1Object>(std::move(obj));
 
@@ -55,25 +76,13 @@ static SP<CTestProtocolV1Impl>     spec = makeShared<CTestProtocolV1Impl>(TEST_P
         conct.pop_back();
         std::println("Got uint array message: \"{}\"", conct);
     });
-    manager->setMakeObject([](uint32_t seq) {
-        object = makeShared<CMyObjectV1Object>(serverSock->createObject(manager->getObject()->client(), manager->getObject(), "my_object_v1", seq));
-        object->sendSendMessage("Hello object");
-        object->setSendMessage([](const char* msg) { std::println("Object says hello: {}", msg); });
-        object->setSendEnum([](testProtocolV1MyEnum e) {
-            std::println("Object sent enum: {}", sc<uint32_t>(e));
-
-            std::println("Erroring out the client!");
-
-            quitt = true;
-            object->error(TEST_PROTOCOL_V1_MY_ERROR_ENUM_ERROR_IMPORTANT, "Important error occurred!");
-        });
-    });
+    manager->setMakeObject(makeObject);
     manager->setOnDestroy([w = WP<CMyManagerV1Object>{manager}]() { //
         std::println("object {:x} destroyed", (uintptr_t)manager.get());
     });
 });
 
-static void                        server(int clientFd) {
+static void                    server(int clientFd) {
     serverSock = Hyprwire::IServerSocket::open();
     pollfd pfd = {.fd = clientFd, .events = POLLIN, .revents = 0};
 
@@ -153,17 +162,19 @@ static void client(int serverFd) {
     cmanager->sendSendMessageArrayUint(std::vector<uint32_t>{69, 420, 2137});
     cmanager->setSendMessage([](const char* msg) { std::println("Server says {}", msg); });
 
-    // test roundtrip
-    sock->roundtrip();
+    auto cobject  = makeShared<CCMyObjectV1Object>(cmanager->sendMakeObject());
+    auto cobject2 = makeShared<CCMyObjectV1Object>(cobject->sendMakeObject());
 
-    auto cobject = makeShared<CCMyObjectV1Object>(cmanager->sendMakeObject());
-    cobject->setSendMessage([&cobject](const char* msg) {
-        std::println("Server says on object {}", msg);
+    cobject->setSendMessage([&cobject](const char* msg) { std::println("Server says on object {}", msg); });
+
+    cobject2->setSendMessage([&cobject](const char* msg) {
+        std::println("Server says on object2 {}", msg);
         cobject->sendSendEnum(TEST_PROTOCOL_V1_MY_ENUM_WORLD);
         quitt = true;
     });
 
-    cobject->sendSendMessage("Hello on object");
+    cobject->sendSendMessage("Hello from object");
+    cobject2->sendSendMessage("Hello from object2");
 
     while (!quitt)
         sock->dispatchEvents(true);
