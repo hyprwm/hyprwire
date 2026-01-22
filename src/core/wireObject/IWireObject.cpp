@@ -1,5 +1,6 @@
 #include "IWireObject.hpp"
 
+#include "../../Macros.hpp"
 #include "../../helpers/Log.hpp"
 #include "../../helpers/FFI.hpp"
 #include "../client/ClientObject.hpp"
@@ -173,18 +174,19 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     auto msg = CGenericProtocolMessage(std::move(data), std::move(fds));
 
     if (!m_id && !server()) {
-        // we are a client
-        // RASSERT(!returnSeq, "Didn't expect returnSeq without m_validId on the client object would be possible. This is a Bug! FIXME!");
-
         msg.m_dependsOnSeq = m_seq;
         auto selfClient    = reinterpretPointerCast<CClientObject>(m_self.lock());
         selfClient->m_client->m_pendingOutgoing.emplace_back(std::move(msg));
+        if (returnSeq) {
+            selfClient->m_client->makeObject(m_protocolName, method.returnsType, returnSeq);
+            return returnSeq;
+        }
     } else {
         sendMessage(msg);
         if (returnSeq) {
             // we are a client
             auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
-            auto obj        = selfClient->m_client->makeObject(m_protocolName, method.returnsType, returnSeq);
+            selfClient->m_client->makeObject(m_protocolName, method.returnsType, returnSeq);
             return returnSeq;
         }
     }
