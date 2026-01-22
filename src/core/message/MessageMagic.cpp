@@ -11,6 +11,7 @@ const char* Hyprwire::magicToString(eMessageMagic magic) {
         case HW_MESSAGE_MAGIC_TYPE_VARCHAR: return "VARCHAR";
         case HW_MESSAGE_MAGIC_TYPE_ARRAY: return "ARRAY";
         case HW_MESSAGE_MAGIC_TYPE_OBJECT: return "OBJECT";
+        case HW_MESSAGE_MAGIC_TYPE_FD: return "FD";
     }
 
     return "ERROR";

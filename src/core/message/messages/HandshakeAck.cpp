@@ -24,6 +24,9 @@ CHandshakeAckMessage::CHandshakeAckMessage(const std::vector<uint8_t>& data, siz
         if (data.at(offset + needle + 4) != HW_MESSAGE_MAGIC_END)
             return;
 
+        if ((data.size() - offset - needle) < sizeof(m_version))
+            return;
+
         std::memcpy(&m_version, &data.at(offset + needle), sizeof(m_version));
 
         needle += 4;

@@ -4,6 +4,7 @@
 #include "../../wireObject/IWireObject.hpp"
 #include "../../../helpers/Env.hpp"
 
+#include <cstring>
 #include <stdexcept>
 #include <hyprwire/core/types/MessageMagic.hpp>
 
@@ -19,7 +20,10 @@ CRoundtripDoneMessage::CRoundtripDoneMessage(const std::vector<uint8_t>& data, s
         if (data.at(offset + 1) != HW_MESSAGE_MAGIC_TYPE_UINT)
             return;
 
-        m_seq = *rc<const uint32_t*>(&data.at(offset + 2));
+        if ((data.size() - offset - 2) < sizeof(m_seq))
+            return;
+
+        std::memcpy(&m_seq, &data.at(offset + 2), sizeof(m_seq));
 
         if (data.at(offset + 6) != HW_MESSAGE_MAGIC_END)
             return;
@@ -37,5 +41,5 @@ CRoundtripDoneMessage::CRoundtripDoneMessage(uint32_t seq) : m_seq(seq) {
 
     m_data = {HW_MESSAGE_TYPE_ROUNDTRIP_DONE, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0, HW_MESSAGE_MAGIC_END};
 
-    *rc<uint32_t*>(&m_data[2]) = seq;
+    std::memcpy(&m_data[2], &seq, sizeof(seq));
 }

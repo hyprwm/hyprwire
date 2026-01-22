@@ -40,7 +40,7 @@ SSocketRawParsedMessage Hyprwire::parseFromFd(const Hyprutils::OS::CFileDescript
 
         sizeWritten = recvmsg(fd.get(), &msg, 0);
         if (sizeWritten < 0)
-            return {};
+            return {.bad = true};
 
         message.data.append_range(std::span<uint8_t>(buffer, sizeWritten));
 

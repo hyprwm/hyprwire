@@ -17,11 +17,11 @@ static SP<CTestProtocolV1Impl>     spec  = makeShared<CTestProtocolV1Impl>(1, []
     std::println("Object bound XD");
     manager = makeShared<CMyManagerV1Object>(std::move(obj));
 
-    manager->sendSendMessage("Hello object");
+    manager->sendSendMessage("Hello manager");
     manager->setSendMessage([](const char* msg) { std::println("Recvd message: {}", msg); });
     manager->setSendMessageFd([](int fd) {
         char msgbuf[6] = {0};
-        read(fd, msgbuf, 5);
+        sc<void>(read(fd, msgbuf, 5));
         std::println("Recvd fd {} with data: {}", fd, msgbuf);
     });
     manager->setSendMessageArray([](std::vector<const char*> data) {

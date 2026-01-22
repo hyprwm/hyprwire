@@ -19,6 +19,9 @@ CNewObjectMessage::CNewObjectMessage(const std::vector<uint8_t>& data, size_t of
         if (data.at(offset + 1) != HW_MESSAGE_MAGIC_TYPE_UINT)
             return;
 
+        if ((data.size() - offset - 2) < sizeof(m_seq))
+            return;
+
         std::memcpy(&m_id, &data.at(offset + 2), sizeof(m_id));
 
         if (data.at(offset + 6) != HW_MESSAGE_MAGIC_TYPE_UINT)

@@ -9,6 +9,7 @@
 namespace Hyprwire {
     class CServerClient;
     class CClientSocket;
+    class CGenericProtocolMessage;
 
     enum eMessageParsingResult : uint8_t {
         MESSAGE_PARSED_OK         = 0,

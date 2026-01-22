@@ -51,13 +51,6 @@ eMessageParsingResult CMessageParser::handleMessage(SSocketRawParsedMessage& dat
             return MESSAGE_PARSED_ERROR;
 
         needle += ret;
-
-        if (client->shouldEndReading()) {
-            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -- handleMessage: End read early", client->m_fd.get(), steadyMillis()));
-            data.data = std::vector<uint8_t>{data.data.begin() + needle, data.data.end()};
-            client->m_pendingSocketData.emplace_back(std::move(data));
-            return MESSAGE_PARSED_OK;
-        }
     }
 
     if (!data.fds.empty())
@@ -240,14 +233,15 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
         }
         case HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE: {
             auto msg = CGenericProtocolMessage(data, raw.fds, off);
+
             if (!msg.m_len) {
                 Debug::log(ERR, "server at fd {} core protocol error: malformed message recvd (HW_MESSAGE_TYPE_GENERIC_PROTOCOL_MESSAGE)", client->m_fd.get());
                 return 0;
             }
 
-            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg.parseData()));
-
             client->onGeneric(msg);
+
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] <- {}", client->m_fd.get(), steadyMillis(), msg.parseData()));
 
             return msg.m_len;
         }
@@ -293,7 +287,8 @@ std::pair<size_t, size_t> CMessageParser::parseVarInt(const std::span<const uint
     size_t     i       = 0;
     const auto LEN     = data.size();
     do {
-        rolling += ((sc<uint8_t>(data[i] << 1) >> 1) << (i++ * 7));
+        rolling += ((sc<uint8_t>(data[i] << 1) >> 1) << (i * 7));
+        i++;
     } while (i < LEN && (data[i - 1] & 0x80));
 
     return {rolling, i};

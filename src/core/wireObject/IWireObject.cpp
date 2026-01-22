@@ -1,5 +1,6 @@
 #include "IWireObject.hpp"
 
+#include "../../Macros.hpp"
 #include "../../helpers/Log.hpp"
 #include "../../helpers/FFI.hpp"
 #include "../client/ClientObject.hpp"
@@ -63,16 +64,16 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     data.resize(data.size() + 4);
     std::memcpy(&data[data.size() - 4], &id, sizeof(id));
 
-    size_t waitOnSeq = 0;
+    size_t returnSeq = 0;
 
     if (!method.returnsType.empty()) {
         data.emplace_back(HW_MESSAGE_MAGIC_TYPE_SEQ);
 
         data.resize(data.size() + 4);
-        auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
-        uint32_t seqVal = ++selfClient->m_client->m_seq;
+        auto     selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
+        uint32_t seqVal     = ++selfClient->m_client->m_seq;
         std::memcpy(&data[data.size() - 4], &seqVal, sizeof(seqVal));
-        waitOnSeq       = selfClient->m_client->m_seq;
+        returnSeq = selfClient->m_client->m_seq;
     }
 
     for (size_t i = 0; i < params.size(); ++i) {
@@ -171,14 +172,23 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     data.emplace_back(HW_MESSAGE_MAGIC_END);
 
     auto msg = CGenericProtocolMessage(std::move(data), std::move(fds));
-    sendMessage(msg);
 
-    if (waitOnSeq) {
-        // we are a client
-        auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
-        auto obj        = selfClient->m_client->makeObject(m_protocolName, method.returnsType, waitOnSeq);
-        selfClient->m_client->waitForObject(obj);
-        return obj->m_id;
+    if (!m_id && !server()) {
+        msg.m_dependsOnSeq = m_seq;
+        auto selfClient    = reinterpretPointerCast<CClientObject>(m_self.lock());
+        selfClient->m_client->m_pendingOutgoing.emplace_back(std::move(msg));
+        if (returnSeq) {
+            selfClient->m_client->makeObject(m_protocolName, method.returnsType, returnSeq);
+            return returnSeq;
+        }
+    } else {
+        sendMessage(msg);
+        if (returnSeq) {
+            // we are a client
+            auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
+            selfClient->m_client->makeObject(m_protocolName, method.returnsType, returnSeq);
+            return returnSeq;
+        }
     }
 
     return 0;

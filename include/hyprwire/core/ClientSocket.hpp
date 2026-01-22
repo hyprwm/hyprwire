@@ -61,6 +61,11 @@ namespace Hyprwire {
         */
         virtual bool isHandshakeDone() = 0;
 
+        /*
+            Get an object from a sequence number
+        */
+        virtual Hyprutils::Memory::CSharedPointer<IObject> objectForSeq(uint32_t seq) = 0;
+
       protected:
         IClientSocket() = default;
     };

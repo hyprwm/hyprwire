@@ -127,6 +127,12 @@ if(BUILD_TESTING)
                         "tests/generated/test_protocol_v1-server.cpp")
   target_link_libraries(server PRIVATE PkgConfig::deps hyprwire)
   add_dependencies(tests server)
+
+  add_executable(fork "${CMAKE_SOURCE_DIR}/tests/Fork.cpp"
+                        "tests/generated/test_protocol_v1-client.cpp"
+                        "tests/generated/test_protocol_v1-server.cpp")
+  target_link_libraries(fork PRIVATE PkgConfig::deps hyprwire)
+  add_dependencies(tests fork)
 else()
   message(STATUS "building tests is disabled")
 endif()

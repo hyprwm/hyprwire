@@ -34,7 +34,7 @@ void CServerClient::dispatchFirstPoll() {
 #if defined(__OpenBSD__)
     struct sockpeercred cred;
 #else
-    ucred     cred;
+    ucred cred;
 #endif
     socklen_t len = sizeof(cred);
 
@@ -79,7 +79,17 @@ void CServerClient::sendMessage(const IMessage& message) {
         }
     }
 
-    sendmsg(m_fd.get(), &msg, 0);
+    while (m_fd.isValid()) {
+        int ret = sendmsg(m_fd.get(), &msg, 0);
+        if (ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
+            pollfd pfd = {
+                .fd     = m_fd.get(),
+                .events = POLLOUT | POLLWRBAND,
+            };
+            poll(&pfd, 1, -1);
+        } else
+            break;
+    }
 }
 
 SP<CServerObject> CServerClient::createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq) {
@@ -155,9 +165,11 @@ void CServerClient::onGeneric(const CGenericProtocolMessage& msg) {
     for (const auto& o : m_objects) {
         if (o->m_id == msg.m_object) {
             o->called(msg.m_method, msg.m_dataSpan, msg.m_fds);
-            break;
+            return;
         }
     }
+
+    Debug::log(WARN, "[{} @ {:.3f}] -> Generic message not handled. No object with id {}!", m_fd.get(), steadyMillis(), msg.m_object);
 }
 
 int CServerClient::getPID() {

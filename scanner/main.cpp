@@ -574,8 +574,8 @@ void CC{}Object::send{}({}) {{
                 SOURCE += std::format(R"#(
 
 SP<Hyprwire::IObject> CC{}Object::send{}({}) {{
-    auto _id = m_object->call({}{});
-    return m_object->clientSock()->objectForId(_id);
+    auto _seq = m_object->call({}{});
+    return m_object->clientSock()->objectForSeq(_seq);
 }}
 )#",
                                       capitalize(o.nameCamel), capitalize(camelize(m.name)), argsToC(m.args), m.idx,

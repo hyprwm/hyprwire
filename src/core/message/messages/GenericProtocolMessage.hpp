@@ -15,8 +15,11 @@ namespace Hyprwire {
 
         virtual const std::vector<int>& fds() const;
 
-        uint32_t                        m_object = 0;
-        uint32_t                        m_method = 0;
+        void                            resolveSeq(uint32_t id);
+
+        uint32_t                        m_object       = 0;
+        uint32_t                        m_dependsOnSeq = 0;
+        uint32_t                        m_method       = 0;
 
         std::span<const uint8_t>        m_dataSpan;
         std::vector<int>                m_fds;

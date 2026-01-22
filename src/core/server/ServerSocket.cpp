@@ -12,6 +12,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
+#include <cstring>
+#include <cerrno>
 #include <unistd.h>
 
 #include <filesystem>
@@ -43,21 +45,24 @@ SP<IServerSocket> IServerSocket::open() {
 
 CServerSocket::CServerSocket() {
     int pipes[2];
-    pipe(pipes);
+    if (pipe(pipes) < 0)
+        Debug::log(ERR, "[- @ {:.3f}] Open wakeup pipes: {}", steadyMillis(), strerror(errno));
 
-    m_wakeupFd      = CFileDescriptor{pipes[0]};
-    m_wakeupWriteFd = CFileDescriptor{pipes[1]};
+    else {
+        m_wakeupFd      = CFileDescriptor{pipes[0]};
+        m_wakeupWriteFd = CFileDescriptor{pipes[1]};
 
-    m_wakeupWriteFd.setFlags(O_CLOEXEC);
-    m_wakeupFd.setFlags(O_CLOEXEC);
+        m_wakeupWriteFd.setFlags(O_CLOEXEC);
+        m_wakeupFd.setFlags(O_CLOEXEC);
+    }
 }
 
 CServerSocket::~CServerSocket() {
     if (m_pollThread.joinable()) {
         m_threadCanPoll = false;
-        write(m_exitWriteFd.get(), "x", 1);
-        if (m_exportPollMtxLocked)
-            m_exportPollMtx.unlock();
+        m_pollEvent     = false;
+        sc<void>(write(m_exitWriteFd.get(), "x", 1));
+        m_pollEventHandledCV.notify_all();
         m_pollThread.join();
     }
 
@@ -117,7 +122,7 @@ bool CServerSocket::attempt(const std::string& path) {
     listen(m_fd.get(), 100);
 
     m_fd.setFlags(O_NONBLOCK | O_CLOEXEC);
-    m_path    = path;
+    m_path = path;
 
     recheckPollFds();
 
@@ -165,10 +170,9 @@ bool CServerSocket::dispatchEvents(bool block) {
 
     m_pollmtx.unlock();
 
-    if (m_exportPollMtxLocked) {
-        m_exportPollMtx.unlock();
-        m_exportPollMtxLocked = false;
-    }
+    std::unique_lock lk(m_exportPollMtx);
+    m_pollEvent = false;
+    m_pollEventHandledCV.notify_all();
 
     return true;
 }
@@ -185,7 +189,7 @@ void CServerSocket::clearFd(const Hyprutils::OS::CFileDescriptor& fd) {
         poll(&pfd, 1, 0);
 
         if (pfd.revents & POLLIN) {
-            read(fd.get(), buf, 127);
+            sc<void>(read(fd.get(), buf, 127));
             continue;
         }
 
@@ -213,7 +217,7 @@ SP<IServerClient> CServerSocket::addClient(int fd) {
     recheckPollFds();
 
     // wake up any poller
-    write(m_wakeupWriteFd.get(), "x", 1);
+    sc<void>(write(m_wakeupWriteFd.get(), "x", 1));
 
     return x;
 }
@@ -339,7 +343,10 @@ void CServerSocket::dispatchClient(SP<CServerClient> client) {
 int CServerSocket::extractLoopFD() {
     if (!m_exportFd.isValid()) {
         int pipes[2];
-        pipe(pipes);
+        if (pipe(pipes) < 0) {
+            Debug::log(ERR, "[- @ {:.3f}] Failed to export pipes for poll thread: {}", steadyMillis(), strerror(errno));
+            return -1;
+        }
 
         m_exportFd      = CFileDescriptor{pipes[0]};
         m_exportWriteFd = CFileDescriptor{pipes[1]};
@@ -347,7 +354,10 @@ int CServerSocket::extractLoopFD() {
         m_exportFd.setFlags(O_CLOEXEC);
         m_exportWriteFd.setFlags(O_CLOEXEC);
 
-        pipe(pipes);
+        if (pipe(pipes) < 0) {
+            Debug::log(ERR, "[- @ {:.3f}] Failed to exit pipes for poll thread: {}", steadyMillis(), strerror(errno));
+            return -1;
+        }
 
         m_exitFd      = CFileDescriptor{pipes[0]};
         m_exitWriteFd = CFileDescriptor{pipes[1]};
@@ -361,13 +371,6 @@ int CServerSocket::extractLoopFD() {
 
         m_pollThread = std::thread([this] {
             while (m_threadCanPoll) {
-
-                m_exportPollMtx.lock(); // wait for dispatch to unlock
-                m_exportPollMtxLocked = true;
-
-                if (!m_threadCanPoll)
-                    break;
-
                 m_pollmtx.lock();
 
                 std::vector<pollfd> pollfds;
@@ -396,9 +399,20 @@ int CServerSocket::extractLoopFD() {
                 }
 
                 m_pollmtx.unlock();
+
                 poll(pollfds.data(), pollfds.size(), -1);
 
-                write(m_exportWriteFd.get(), "x", 1);
+                if (!m_threadCanPoll)
+                    return;
+
+                {
+                    std::unique_lock lk(m_exportPollMtx);
+
+                    m_pollEvent = true;
+                    sc<void>(write(m_exportWriteFd.get(), "x", 1));
+
+                    m_pollEventHandledCV.wait_for(lk, std::chrono::milliseconds(5000), [this] { return !m_pollEvent; });
+                }
             }
         });
     }

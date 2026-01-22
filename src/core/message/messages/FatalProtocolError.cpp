@@ -4,6 +4,7 @@
 #include "../../wireObject/IWireObject.hpp"
 #include "../../../helpers/Env.hpp"
 
+#include <cstring>
 #include <stdexcept>
 #include <string_view>
 #include <hyprwire/core/types/MessageMagic.hpp>
@@ -20,12 +21,12 @@ CFatalErrorMessage::CFatalErrorMessage(const std::vector<uint8_t>& data, size_t 
         if (data.at(offset + 1) != HW_MESSAGE_MAGIC_TYPE_UINT)
             return;
 
-        m_objectId = *rc<const uint32_t*>(&data.at(offset + 2));
+        std::memcpy(&m_objectId, &data.at(offset + 2), sizeof(m_objectId));
 
         if (data.at(offset + 6) != HW_MESSAGE_MAGIC_TYPE_UINT)
             return;
 
-        m_errorId = *rc<const uint32_t*>(&data.at(offset + 7));
+        std::memcpy(&m_errorId, &data.at(offset + 7), sizeof(m_errorId));
 
         if (data.at(offset + 11) != HW_MESSAGE_MAGIC_TYPE_VARCHAR)
             return;
@@ -56,8 +57,9 @@ CFatalErrorMessage::CFatalErrorMessage(SP<IWireObject> obj, uint32_t errorId, co
 
     m_data = {HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0, HW_MESSAGE_MAGIC_TYPE_VARCHAR};
 
-    *rc<uint32_t*>(&m_data[2]) = obj ? obj->m_id : 0;
-    *rc<uint32_t*>(&m_data[7]) = errorId;
+    if (obj)
+        std::memcpy(&m_data[2], &obj->m_id, sizeof(obj->m_id));
+    std::memcpy(&m_data[7], &errorId, sizeof(errorId));
 
     m_data.append_range(g_messageParser->encodeVarInt(msg.size()));
     m_data.append_range(msg);

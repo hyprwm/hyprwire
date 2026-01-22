@@ -9,8 +9,9 @@
 #include "../message/messages/GenericProtocolMessage.hpp"
 #include "../message/messages/RoundtripRequest.hpp"
 #include "../socket/SocketHelpers.hpp"
-#include "ServerSpec.hpp"
+#include "../wireObject/IWireObject.hpp"
 #include "ClientObject.hpp"
+#include "ServerSpec.hpp"
 
 #include <hyprwire/core/implementation/Object.hpp>
 #include <hyprwire/core/implementation/Types.hpp>
@@ -118,19 +119,6 @@ bool CClientSocket::dispatchEvents(bool block) {
         }
     }
 
-    if (!m_pendingSocketData.empty()) {
-        auto CPY = std::move(m_pendingSocketData);
-        for (auto& d : CPY) {
-            const auto RET = g_messageParser->handleMessage(d, m_self.lock());
-
-            if (RET != MESSAGE_PARSED_OK) {
-                Debug::log(ERR, "fatal: failed to handle message on wire");
-                disconnectOnError();
-                return false;
-            }
-        }
-    }
-
     if (m_handshakeDone)
         poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
 
@@ -160,6 +148,21 @@ bool CClientSocket::dispatchEvents(bool block) {
         disconnectOnError();
         return false;
     }
+
+    std::erase_if(m_pendingOutgoing, [this](auto& msg) {
+        auto obj = objectForSeq(msg.m_dependsOnSeq);
+        if (!obj)
+            return true;
+
+        auto wObj = reinterpretPointerCast<CClientObject>(obj);
+        if (!wObj->m_id)
+            return false;
+
+        msg.resolveSeq(wObj->m_id);
+        TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -> Handle deferred: {}", m_fd.get(), steadyMillis(), msg.parseData()));
+        sendMessage(msg);
+        return true;
+    });
 
     return !m_error;
 }
@@ -198,7 +201,17 @@ void CClientSocket::sendMessage(const IMessage& message) {
         }
     }
 
-    sendmsg(m_fd.get(), &msg, 0);
+    while (m_fd.isValid()) {
+        int ret = sendmsg(m_fd.get(), &msg, 0);
+        if (ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
+            pollfd pfd = {
+                .fd     = m_fd.get(),
+                .events = POLLOUT | POLLWRBAND,
+            };
+            poll(&pfd, 1, -1);
+        } else
+            break;
+    }
 }
 
 int CClientSocket::extractLoopFD() {
@@ -246,9 +259,11 @@ void CClientSocket::onSeq(uint32_t seq, uint32_t id) {
     for (const auto& c : m_objects) {
         if (c->m_seq == seq) {
             c->m_id = id;
-            break;
+            return;
         }
     }
+
+    Debug::log(WARN, "[{} @ {:.3f}] -> No object for sequence {} (Would be id {}).!", m_fd.get(), steadyMillis(), seq, id);
 }
 
 SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version) {
@@ -302,7 +317,7 @@ SP<CClientObject> CClientSocket::makeObject(const std::string& protocolName, con
     return object;
 }
 
-void CClientSocket::waitForObject(SP<CClientObject> x) {
+void CClientSocket::waitForObject(SP<IWireObject> x) {
     m_waitingOnObject = x;
     while (!x->m_id && !m_error) {
         dispatchEvents(true);
@@ -310,22 +325,28 @@ void CClientSocket::waitForObject(SP<CClientObject> x) {
     m_waitingOnObject.reset();
 }
 
-bool CClientSocket::shouldEndReading() {
-    return m_waitingOnObject && m_waitingOnObject->m_id;
-}
-
 void CClientSocket::onGeneric(const CGenericProtocolMessage& msg) {
     for (const auto& o : m_objects) {
         if (o->m_id == msg.m_object) {
             o->called(msg.m_method, msg.m_dataSpan, msg.m_fds);
-            break;
+            return;
         }
     }
+
+    Debug::log(WARN, "[{} @ {:.3f}] -> Generic message not handled. No object with id {}!", m_fd.get(), steadyMillis(), msg.m_object);
 }
 
 SP<IObject> CClientSocket::objectForId(uint32_t id) {
     for (const auto& o : m_objects) {
         if (o->m_id == id)
+            return o;
+    }
+    return nullptr;
+}
+
+SP<IObject> CClientSocket::objectForSeq(uint32_t seq) {
+    for (const auto& o : m_objects) {
+        if (o->m_seq == seq)
             return o;
     }
     return nullptr;

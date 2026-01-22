@@ -4,6 +4,7 @@
 #include <hyprutils/os/FileDescriptor.hpp>
 #include "../../helpers/Memory.hpp"
 
+#include <condition_variable>
 #include <vector>
 #include <thread>
 #include <mutex>
@@ -53,7 +54,8 @@ namespace Hyprwire {
         std::thread                                    m_pollThread;
         std::recursive_mutex                           m_pollmtx;
         std::mutex                                     m_exportPollMtx;
-        bool                                           m_exportPollMtxLocked = false;
+        std::condition_variable                        m_pollEventHandledCV;
+        bool                                           m_pollEvent = false;
 
         bool                                           m_isEmptyListener = false;
         std::string                                    m_path;

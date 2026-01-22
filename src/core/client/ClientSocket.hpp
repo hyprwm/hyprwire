@@ -4,6 +4,7 @@
 #include <hyprutils/os/FileDescriptor.hpp>
 #include "../../helpers/Memory.hpp"
 #include "../socket/SocketHelpers.hpp"
+#include "../wireObject/IWireObject.hpp"
 
 #include <vector>
 #include <sys/poll.h>
@@ -28,6 +29,7 @@ namespace Hyprwire {
         virtual SP<IProtocolSpec>                      getSpec(const std::string& name);
         virtual SP<IObject>                            bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version);
         virtual SP<IObject>                            objectForId(uint32_t id);
+        virtual SP<IObject>                            objectForSeq(uint32_t seq);
         virtual void                                   roundtrip();
         virtual bool                                   isHandshakeDone();
 
@@ -37,7 +39,7 @@ namespace Hyprwire {
         void                                           onSeq(uint32_t seq, uint32_t id);
         void                                           onGeneric(const CGenericProtocolMessage& msg);
         SP<CClientObject>                              makeObject(const std::string& protocolName, const std::string& objectName, uint32_t seq);
-        void                                           waitForObject(SP<CClientObject>);
+        void                                           waitForObject(SP<IWireObject>);
 
         void                                           disconnectOnError();
 
@@ -48,9 +50,8 @@ namespace Hyprwire {
         std::vector<SP<CClientObject>>                 m_objects;
 
         // this is used when waiting on an object
-        std::vector<SSocketRawParsedMessage> m_pendingSocketData;
-        WP<CClientObject>                    m_waitingOnObject;
-        bool                                 shouldEndReading();
+        WP<IWireObject>                      m_waitingOnObject;
+        std::vector<CGenericProtocolMessage> m_pendingOutgoing;
         //
 
         bool                                  m_error         = false;
