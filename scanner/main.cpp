@@ -653,8 +653,11 @@ class C{}Object {{
         m_object->error(code, sv);
     }}
 
+    static const char* name() {{
+        return "{}";
+    }}
 )#",
-                                   capitalize(o.nameCamel), capitalize(o.nameCamel), capitalize(o.nameCamel));
+                                   capitalize(o.nameCamel), capitalize(o.nameCamel), capitalize(o.nameCamel), o.name);
 
         for (const auto& m : o.s2c) {
             HEADER_IMPL += std::format(R"#(
