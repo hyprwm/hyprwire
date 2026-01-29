@@ -49,8 +49,18 @@ int                                main(int argc, char** argv, char** envp) {
 
     std::println("Will send fd {}", pips[0]);
 
+    int pips2[2];
+    int pips3[2];
+    
+    sc<void>(pipe(pips2));
+    sc<void>(pipe(pips3));
+    
+    sc<void>(write(pips2[1], "o kurwa", 7));
+    sc<void>(write(pips3[1], "bober!!", 7));
+
     manager->sendSendMessage("Hello!");
     manager->sendSendMessageFd(pips[0]);
+    manager->sendSendMessageArrayFd(std::vector<int>{pips2[0], pips3[0]});
     manager->sendSendMessageArray(std::vector<const char*>{"Hello", "via", "array!"});
     manager->sendSendMessageArray(std::vector<const char*>{});
     manager->sendSendMessageArrayUint(std::vector<uint32_t>{69, 420, 2137});

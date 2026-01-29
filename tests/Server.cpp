@@ -24,6 +24,15 @@ static SP<CTestProtocolV1Impl>     spec  = makeShared<CTestProtocolV1Impl>(1, []
         sc<void>(read(fd, msgbuf, 5));
         std::println("Recvd fd {} with data: {}", fd, msgbuf);
     });
+    manager->setSendMessageArrayFd([](const std::vector<int>& fds) {
+        std::println("Received {} fds", fds.size());
+    
+        for (int fd : fds) {
+            char msgbuf[8] = {0};
+            sc<void>(read(fd, msgbuf, 7));
+            std::println("fd {} with data: {}", fd, msgbuf);
+        }
+    });
     manager->setSendMessageArray([](std::vector<const char*> data) {
         std::string conct = "";
         for (const auto& d : data) {

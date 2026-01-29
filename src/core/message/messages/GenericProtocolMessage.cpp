@@ -63,11 +63,13 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
                             break;
                         }
                         case HW_MESSAGE_MAGIC_TYPE_FD: {
-                            if (fds.empty())
-                                return;
+                            for (size_t j = 0; j < arrLen; ++j) {
+                                if (fds.empty())
+                                    return;
 
-                            m_fds.emplace_back(fds[0]);
-                            fds.erase(fds.begin(), fds.begin() + 1);
+                                m_fds.emplace_back(fds[0]);
+                                fds.erase(fds.begin(), fds.begin() + 1);
+                            }
 
                             i += 0;
                             break;
