@@ -139,6 +139,12 @@ uint32_t IWireObject::call(uint32_t id, ...) {
                         }
                         break;
                     }
+                    case HW_MESSAGE_MAGIC_TYPE_FD: {
+                        for (size_t j = 0; j < arrayLen; ++j) {
+                            fds.emplace_back(rc<int32_t*>(arrayData)[j]);
+                        }
+                        break;
+                    }
                     case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                         for (size_t i = 0; i < arrayLen; ++i) {
                             const char* element = rc<const char**>(arrayData)[i];
@@ -297,6 +303,9 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                         }
                         break;
                     }
+                    case HW_MESSAGE_MAGIC_TYPE_FD: {
+                        break;
+                    }
                     default: {
                         const auto MSG = std::format("failed demarshaling array message");
                         Debug::log(ERR, "core protocol error: {}", MSG);
@@ -437,6 +446,24 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                             dataPtr[j] = str->c_str();
                             arrMessageLen += strlenLen + strLen;
                         }
+                        break;
+                    }
+                    case HW_MESSAGE_MAGIC_TYPE_FD: {
+                        auto dataPtr  = rc<int32_t*>(malloc(sizeof(int32_t) * (arrLen == 0 ? 1 : arrLen)));
+                        auto dataSlot = rc<int32_t**>(malloc(sizeof(int32_t**)));
+                        auto sizeSlot = rc<uint32_t*>(malloc(sizeof(uint32_t)));
+
+                        *dataSlot = dataPtr;
+                        *sizeSlot = arrLen;
+
+                        avalues.emplace_back(dataSlot);
+                        avalues.emplace_back(sizeSlot);
+                        otherBuffers.emplace_back(dataPtr);
+
+                        for (size_t j = 0; j < arrLen; ++j) {
+                            dataPtr[j] = fds.at(fdNo++);
+                        }
+
                         break;
                     }
                     default: {
