@@ -118,7 +118,7 @@ std::string IMessage::parseData() const {
                 needle += intLen;
 
                 for (size_t i = 0; i < els; ++i) {
-                    auto [str, len] = formatPrimitiveType(std::span<const uint8_t>{&m_data[needle], m_data.size() - needle}, thisType);
+                    auto [str, len] = formatPrimitiveType(std::span<const uint8_t>{m_data.data() + (needle * sizeof(uint8_t)), m_data.size() - needle}, thisType);
 
                     needle += len;
 
