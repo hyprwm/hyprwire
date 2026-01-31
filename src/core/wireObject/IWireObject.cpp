@@ -67,6 +67,11 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     size_t returnSeq = 0;
 
     if (!method.returnsType.empty()) {
+        if (Env::isTrace()) {
+            auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
+            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -- call {}: returnsType has {}", selfClient->m_client->m_fd.get(), steadyMillis(), id, method.returnsType));
+        }
+
         data.emplace_back(HW_MESSAGE_MAGIC_TYPE_SEQ);
 
         data.resize(data.size() + 4);
@@ -180,8 +185,11 @@ uint32_t IWireObject::call(uint32_t id, ...) {
     auto msg = CGenericProtocolMessage(std::move(data), std::move(fds));
 
     if (!m_id && !server()) {
+        auto selfClient = reinterpretPointerCast<CClientObject>(m_self.lock());
+
+        TRACE(Debug::log(TRACE, "[{} @ {:.3f}] -- call: waiting on object of type {}", selfClient->m_client->m_fd.get(), steadyMillis(), method.returnsType));
+
         msg.m_dependsOnSeq = m_seq;
-        auto selfClient    = reinterpretPointerCast<CClientObject>(m_self.lock());
         selfClient->m_client->m_pendingOutgoing.emplace_back(std::move(msg));
         if (returnSeq) {
             selfClient->m_client->makeObject(m_protocolName, method.returnsType, returnSeq);

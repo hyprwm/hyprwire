@@ -63,5 +63,6 @@ namespace Hyprwire {
         uint32_t                              m_seq = 0;
 
         uint32_t                              m_lastAckdRoundtripSeq = 0;
+        uint32_t                              m_lastSentRoundtripSeq = 0;
     };
 };

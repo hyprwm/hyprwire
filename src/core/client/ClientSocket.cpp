@@ -361,7 +361,7 @@ void CClientSocket::roundtrip() {
     if (m_error)
         return;
 
-    auto nextSeq = m_lastAckdRoundtripSeq + 1;
+    auto nextSeq = ++m_lastSentRoundtripSeq;
     sendMessage(CRoundtripRequestMessage(nextSeq));
 
     while (m_lastAckdRoundtripSeq < nextSeq) {
