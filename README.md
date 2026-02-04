@@ -16,3 +16,6 @@ Hyprwire is:
 - Simple to use: the API uses modern C++ and abstracts away any memory-sensitive operations
 - Simple internally: the protocol itself is simple and straightforward to parse / write your own implementation
 
+### Developer wire docs
+
+See [WIRE.md](./docs/WIRE.md)
