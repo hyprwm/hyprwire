@@ -123,6 +123,6 @@ const std::vector<int>& CGenericProtocolMessage::fds() const {
 
 void CGenericProtocolMessage::resolveSeq(uint32_t id) {
     m_object = id;
-    if (m_data.size() > 2)
-        m_data[2] = id;
+    if (m_data.size() >= 6)
+        std::memcpy(m_data.data() + 2, &id, sizeof(uint32_t));
 }
