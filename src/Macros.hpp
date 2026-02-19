@@ -32,7 +32,7 @@ inline float steadyMillis() {
 
 #define ASSERT(expr) RASSERT(expr, "?")
 
-#ifndef HYPRTWIRE_DEBUG
+#ifndef HYPRWIRE_DEBUG
 
 #define UNREACHABLE() std::unreachable();
 
