@@ -2,14 +2,34 @@
 
 set_and_check(BINDIR "@PACKAGE_CMAKE_INSTALL_BINDIR@")
 
-function(hyprwire_protocol targets protoName protoPath outputPath)
+function(hyprwire_protocol targets isClient outputPath protoName protoPath protoFile)
+    if(isClient)
+        set(mode "--client")
+        set(suffix "client")
+    else()
+        set(mode "")
+        set(suffix "server")
+    endif()
+
+    set(outdir "${CMAKE_SOURCE_DIR}/tests/generated")
+    set(xml_in "${protoPath}/${protoFile}")
+
+    set(out_cpp "${outdir}/${protoName}-${suffix}.cpp")
+    set(out_hpp "${outdir}/${protoName}-${suffix}.hpp")
+
     add_custom_command(
-        OUTPUT "${outputPath}/${protoName}.cpp"
-        COMMAND "${BINDIR}/hyprwire-scanner" "${protoPath}/${protoName}.xml" "${outputPath}"
+        OUTPUT "${out_cpp}" "${out_hpp}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${outdir}"
+        COMMAND hyprwire-scanner ${mode} "${xml_in}" "${outdir}"
+        DEPENDS "${xml_in}"
+        VERBATIM
+        COMMENT
+        "Generating ${suffix} protocol from ${protoFile} -> ${protoName}-${suffix}.{cpp,hpp}"
     )
+
     foreach(target ${targets})
-        target_sources(${target} PRIVATE "${outputPath}/${protoName}.cpp")
-        target_sources(${target} PRIVATE "${outputPath}/${protoName}.hpp")
+        target_sources(${target} PRIVATE "${out_cpp}")
+        target_sources(${target} PRIVATE "${out_hpp}")
     endforeach()
 endfunction()
 
