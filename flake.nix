@@ -27,7 +27,7 @@
         import nixpkgs {
           localSystem.system = system;
           overlays = with self.overlays; [
-            hyprwire
+            hyprwire-with-deps
           ];
         }
       );

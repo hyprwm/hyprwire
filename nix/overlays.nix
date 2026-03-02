@@ -15,21 +15,23 @@ let
   version = lib.removeSuffix "\n" (builtins.readFile ../VERSION);
 in
 {
-  default = inputs.self.overlays.hyprwire;
+  default = self.overlays.hyprwire;
 
-  hyprwire = lib.composeManyExtensions [
+  hyprwire-with-deps = lib.composeManyExtensions [
     inputs.hyprutils.overlays.default
-    (final: prev: {
-      hyprwire = prev.callPackage ./default.nix {
-        stdenv = prev.gcc15Stdenv;
-        version =
-          version
-          + "+date="
-          + (mkDate (inputs.self.lastModifiedDate or "19700101"))
-          + "_"
-          + (inputs.self.shortRev or "dirty");
-      };
-      hyprwire-with-tests = final.hyprwire.override { doCheck = true; };
-    })
+    self.overlays.hyprwire
   ];
+
+  hyprwire = final: prev: {
+    hyprwire = prev.callPackage ./default.nix {
+      stdenv = prev.gcc15Stdenv;
+      version =
+        version
+        + "+date="
+        + (mkDate (inputs.self.lastModifiedDate or "19700101"))
+        + "_"
+        + (inputs.self.shortRev or "dirty");
+    };
+    hyprwire-with-tests = final.hyprwire.override { doCheck = true; };
+  };
 }
