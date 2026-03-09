@@ -21,6 +21,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
+#include <cstring>
 
 #include <filesystem>
 #include <hyprutils/utils/ScopeGuard.hpp>
