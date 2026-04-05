@@ -279,6 +279,8 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
 }
 
 std::pair<size_t, size_t> CMessageParser::parseVarInt(const std::vector<uint8_t>& data, size_t offset) {
+    if (offset >= data.size())
+        return {0, 0};
     return parseVarInt(std::span<const uint8_t>{&data[offset], data.size() - offset});
 }
 
