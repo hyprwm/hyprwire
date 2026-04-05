@@ -287,7 +287,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                 auto [arrLen, lenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI + 2], data.size() - i});
                 size_t arrMessageLen  = 2 + lenLen;
 
-                if (arrLen > 10000){
+                if (arrLen > 10000) {
                     // raise protocol error
                     const auto MSG = std::format("method {} param idx {} max array size of 10000 exceeded", id, i);
                     Debug::log(ERR, "core protocol error: {}", MSG);
