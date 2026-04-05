@@ -28,6 +28,10 @@ CHandshakeBeginMessage::CHandshakeBeginMessage(const std::vector<uint8_t>& data,
 
         needle += varIntLen;
 
+        // Limit the amount of versions to 256, doesn't make sense otherwise.
+        if (nVers >= 256)
+            return;
+
         m_versionsSupported.resize(nVers);
 
         for (size_t i = 0; i < nVers; ++i) {

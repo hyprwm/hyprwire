@@ -28,6 +28,10 @@ CHandshakeProtocolsMessage::CHandshakeProtocolsMessage(const std::vector<uint8_t
 
         needle += varIntLen;
 
+        // max 2048 protocols per connection
+        if (els >= 2048)
+            return;
+
         m_protocols.resize(els);
 
         for (size_t i = 0; i < els; ++i) {
