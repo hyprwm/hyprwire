@@ -45,6 +45,11 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
                     auto [arrLen, lenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[offset + i + 2], data.size() - i});
                     size_t arrMessageLen  = 2 + lenLen;
 
+                    if (arrLen >= 10000) {
+                        Debug::log(TRACE, "GenericProtocolMessage: failed demarshaling array message, array max size is 10000.");
+                        return;
+                    }
+
                     switch (arrType) {
                         case HW_MESSAGE_MAGIC_TYPE_UINT:
                         case HW_MESSAGE_MAGIC_TYPE_F32:
