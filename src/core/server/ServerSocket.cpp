@@ -302,8 +302,10 @@ bool CServerSocket::dispatchExistingConnections() {
             continue;
         }
 
-        if (m_clients.at(i - internalFds())->m_error)
+        if (m_clients.at(i - internalFds())->m_error) {
+            needsPollRecheck = true;
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - internalFds())->m_fd.get(), steadyMillis()));
+        }
     }
 
     if (needsPollRecheck) {
