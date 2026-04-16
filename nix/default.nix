@@ -3,6 +3,7 @@
   stdenv,
   cmake,
   pkg-config,
+  gtest,
   hyprutils,
   libffi,
   pugixml,
@@ -18,7 +19,8 @@ stdenv.mkDerivation {
   nativeBuildInputs = [
     cmake
     pkg-config
-  ];
+  ]
+  ++ lib.optionals doCheck [ gtest ];
 
   buildInputs = [
     hyprutils
