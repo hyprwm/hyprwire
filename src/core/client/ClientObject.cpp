@@ -18,6 +18,31 @@ CClientObject::CClientObject(SP<CClientSocket> client) : m_client(client) {
 }
 
 CClientObject::~CClientObject() {
+    if (!m_destroyed && m_id != 0 && m_spec && m_client && m_client->m_fd.isValid()) {
+        const auto methods = methodsOut();
+        for (const auto& method : methods) {
+            if (!method.isDestructor)
+                continue;
+
+            if (method.since > m_version)
+                continue;
+
+            if (!method.returnsType.empty()) {
+                Debug::log(WARN, "can't auto-call destructor for object {}: method {} has returns type", m_id, method.idx);
+                break;
+            }
+
+            if (!method.params.empty()) {
+                Debug::log(WARN, "can't auto-call destructor for object {}: method {} has params", m_id, method.idx);
+                break;
+            }
+
+            TRACE(Debug::log(TRACE, "auto-calling protocol destructor {} for object {}", method.idx, m_id));
+            call(method.idx);
+            break;
+        }
+    }
+
     TRACE(Debug::log(TRACE, "destroying object {}", m_id));
 }
 

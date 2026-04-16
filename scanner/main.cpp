@@ -359,8 +359,9 @@ Hyprwire::SMethod{{
 .params = {{ {} }},
 .returnsType = "{}",
 .since = {},
+.isDestructor = {},
 }},)#",
-                                           m.idx, argArrayStr, m.returns, m.since);
+                                           m.idx, argArrayStr, m.returns, m.since, m.destructor ? "true" : "false");
         }
 
         if (!object.c2s.empty())
@@ -391,8 +392,9 @@ Hyprwire::SMethod{{
 .idx = {},
 .params = {{ {} }},
 .since = {},
+.isDestructor = {},
 }},)#",
-                                           m.idx, argArrayStr, m.since);
+                                           m.idx, argArrayStr, m.since, m.destructor ? "true" : "false");
         }
 
         if (!object.s2c.empty())

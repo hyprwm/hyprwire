@@ -111,6 +111,8 @@ if(BUILD_TESTING)
   message(STATUS "building tests is enabled")
 
   enable_testing()
+
+  # Server + Client tests
   add_custom_target(tests)
 
   message(STATUS "generating protocols")
@@ -133,6 +135,29 @@ if(BUILD_TESTING)
                         "tests/generated/test_protocol_v1-server.cpp")
   target_link_libraries(fork PRIVATE PkgConfig::deps hyprwire)
   add_dependencies(tests fork)
+
+  # GTests
+  find_package(GTest CONFIG REQUIRED)
+  include(GoogleTest)
+  file(GLOB_RECURSE TESTFILES CONFIGURE_DEPENDS "tests/unit/*.cpp")
+  add_executable(hyprwire_tests ${TESTFILES})
+
+  target_compile_options(hyprwire_tests PRIVATE --coverage -fsanitize=address)
+  target_link_options(hyprwire_tests PRIVATE --coverage)
+  
+  target_include_directories(
+    hyprwire_tests
+    PUBLIC "./include"
+    PRIVATE "./src" "./src/include" "./protocols" "${CMAKE_BINARY_DIR}")
+  target_link_libraries(hyprwire_tests PRIVATE asan hyprwire GTest::gtest_main
+                                                       PkgConfig::deps)
+  gtest_discover_tests(hyprwire_tests
+    PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0"
+  )
+
+  # Add coverage to hyprwire for test builds
+  target_compile_options(hyprwire PRIVATE --coverage)
+  target_link_options(hyprwire PRIVATE --coverage)
 else()
   message(STATUS "building tests is disabled")
 endif()

@@ -3,6 +3,7 @@
 #include "ServerObject.hpp"
 #include "../../helpers/Memory.hpp"
 #include "../../helpers/Log.hpp"
+#include "../../helpers/Syscalls.hpp"
 #include "../../Macros.hpp"
 #include "../message/MessageParser.hpp"
 #include "../message/messages/FatalProtocolError.hpp"
@@ -142,7 +143,7 @@ void CServerSocket::addImplementation(SP<IProtocolServerImplementation>&& x) {
 }
 
 bool CServerSocket::dispatchPending() {
-    poll(m_pollfds.data(), m_pollfds.size(), 0);
+    Syscalls::poll(m_pollfds.data(), m_pollfds.size(), 0);
     if (dispatchNewConnections())
         return dispatchPending();
 
@@ -162,7 +163,7 @@ bool CServerSocket::dispatchEvents(bool block) {
     clearWakeupFd();
 
     if (block) {
-        poll(m_pollfds.data(), m_pollfds.size(), -1);
+        Syscalls::poll(m_pollfds.data(), m_pollfds.size(), -1);
         while (dispatchPending()) {
             ;
         }
@@ -186,7 +187,7 @@ void CServerSocket::clearFd(const Hyprutils::OS::CFileDescriptor& fd) {
     };
 
     while (fd.isValid()) {
-        poll(&pfd, 1, 0);
+        Syscalls::poll(&pfd, 1, 0);
 
         if (pfd.revents & POLLIN) {
             sc<void>(read(fd.get(), buf, 127));
@@ -302,8 +303,10 @@ bool CServerSocket::dispatchExistingConnections() {
             continue;
         }
 
-        if (m_clients.at(i - internalFds())->m_error)
+        if (m_clients.at(i - internalFds())->m_error) {
+            needsPollRecheck = true;
             TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - internalFds())->m_fd.get(), steadyMillis()));
+        }
     }
 
     if (needsPollRecheck) {
@@ -400,7 +403,7 @@ int CServerSocket::extractLoopFD() {
 
                 m_pollmtx.unlock();
 
-                poll(pollfds.data(), pollfds.size(), -1);
+                Syscalls::poll(pollfds.data(), pollfds.size(), -1);
 
                 if (!m_threadCanPoll)
                     return;

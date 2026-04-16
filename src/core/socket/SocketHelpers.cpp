@@ -2,6 +2,7 @@
 
 #include "../../helpers/Log.hpp"
 #include "../../helpers/Memory.hpp"
+#include "../../helpers/Syscalls.hpp"
 #include "../../Macros.hpp"
 
 #include <unistd.h>
@@ -38,7 +39,7 @@ SSocketRawParsedMessage Hyprwire::parseFromFd(const Hyprutils::OS::CFileDescript
         msg.msg_control    = controlBuf.data();
         msg.msg_controllen = controlBuf.size();
 
-        sizeWritten = recvmsg(fd.get(), &msg, 0);
+        sizeWritten = Syscalls::recvmsg(fd.get(), &msg, 0);
         if (sizeWritten < 0)
             return {.bad = true};
 

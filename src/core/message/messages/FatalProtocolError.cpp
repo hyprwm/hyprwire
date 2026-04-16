@@ -53,12 +53,19 @@ CFatalErrorMessage::CFatalErrorMessage(const std::vector<uint8_t>& data, size_t 
 }
 
 CFatalErrorMessage::CFatalErrorMessage(SP<IWireObject> obj, uint32_t errorId, const std::string_view& msg) {
+    uint32_t objectId = 0;
+    if (obj)
+        objectId = obj->m_id;
+
+    *this = CFatalErrorMessage(objectId, errorId, msg);
+}
+
+CFatalErrorMessage::CFatalErrorMessage(uint32_t objectId, uint32_t errorId, const std::string_view& msg) {
     m_type = HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR;
 
     m_data = {HW_MESSAGE_TYPE_FATAL_PROTOCOL_ERROR, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0, HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0, HW_MESSAGE_MAGIC_TYPE_VARCHAR};
 
-    if (obj)
-        std::memcpy(&m_data[2], &obj->m_id, sizeof(obj->m_id));
+    std::memcpy(&m_data[2], &objectId, sizeof(objectId));
     std::memcpy(&m_data[7], &errorId, sizeof(errorId));
 
     m_data.append_range(g_messageParser->encodeVarInt(msg.size()));

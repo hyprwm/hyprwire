@@ -1,6 +1,7 @@
 #include "ClientSocket.hpp"
 #include "../../helpers/Memory.hpp"
 #include "../../helpers/Log.hpp"
+#include "../../helpers/Syscalls.hpp"
 #include "../../Macros.hpp"
 #include "../message/MessageParser.hpp"
 #include "../message/messages/IMessage.hpp"
@@ -29,6 +30,10 @@
 using namespace Hyprwire;
 using namespace Hyprutils::OS;
 using namespace Hyprutils::Utils;
+
+namespace {
+    std::chrono::milliseconds g_handshakeMax = std::chrono::milliseconds(5000);
+}
 
 SP<IClientSocket> IClientSocket::open(const std::string& path) {
     SP<CClientSocket> sock = makeShared<CClientSocket>();
@@ -101,7 +106,13 @@ void CClientSocket::addImplementation(SP<IProtocolClientImplementation>&& x) {
     m_impls.emplace_back(std::move(x));
 }
 
-constexpr const size_t HANDSHAKE_MAX_MS = 5000;
+void CClientSocket::setHandshakeTimeoutForTests(std::chrono::milliseconds timeout) {
+    g_handshakeMax = timeout;
+}
+
+void CClientSocket::resetHandshakeTimeoutForTests() {
+    g_handshakeMax = std::chrono::milliseconds(5000);
+}
 
 //
 bool CClientSocket::dispatchEvents(bool block) {
@@ -109,10 +120,20 @@ bool CClientSocket::dispatchEvents(bool block) {
     if (m_error)
         return false;
 
+    collectOrphanedObjects();
+
     if (!m_handshakeDone) {
-        const auto MAX_MS =
-            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::milliseconds(HANDSHAKE_MAX_MS) - (std::chrono::steady_clock::now() - m_handshakeBegin)).count();
-        int ret = poll(m_pollfds.data(), m_pollfds.size(), block ? MAX_MS : 0);
+        const auto elapsed = std::chrono::steady_clock::now() - m_handshakeBegin;
+        const auto maxMs   = g_handshakeMax;
+
+        if (block && elapsed >= maxMs) {
+            Debug::log(ERR, "handshake error: timed out");
+            disconnectOnError();
+            return false;
+        }
+
+        const auto timeout = block ? std::chrono::duration_cast<std::chrono::milliseconds>(maxMs - elapsed).count() : 0;
+        int        ret     = Syscalls::poll(m_pollfds.data(), m_pollfds.size(), static_cast<int>(timeout));
         if (block && !ret) {
             Debug::log(ERR, "handshake error: timed out");
             disconnectOnError();
@@ -121,13 +142,15 @@ bool CClientSocket::dispatchEvents(bool block) {
     }
 
     if (m_handshakeDone)
-        poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
+        Syscalls::poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
 
     if (m_pollfds[0].revents & POLLHUP)
         return false;
 
-    if (!(m_pollfds[0].revents & POLLIN))
+    if (!(m_pollfds[0].revents & POLLIN)) {
+        collectOrphanedObjects();
         return true;
+    }
 
     // dispatch
 
@@ -164,6 +187,8 @@ bool CClientSocket::dispatchEvents(bool block) {
         sendMessage(msg);
         return true;
     });
+
+    collectOrphanedObjects();
 
     return !m_error;
 }
@@ -203,13 +228,13 @@ void CClientSocket::sendMessage(const IMessage& message) {
     }
 
     while (m_fd.isValid()) {
-        int ret = sendmsg(m_fd.get(), &msg, 0);
+        int ret = Syscalls::sendmsg(m_fd.get(), &msg, 0);
         if (ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
             pollfd pfd = {
                 .fd     = m_fd.get(),
                 .events = POLLOUT | POLLWRBAND,
             };
-            poll(&pfd, 1, -1);
+            Syscalls::poll(&pfd, 1, -1);
         } else
             break;
     }
@@ -327,14 +352,38 @@ void CClientSocket::waitForObject(SP<IWireObject> x) {
 }
 
 void CClientSocket::onGeneric(const CGenericProtocolMessage& msg) {
+    SP<CClientObject> object;
+
     for (const auto& o : m_objects) {
-        if (o->m_id == msg.m_object) {
-            o->called(msg.m_method, msg.m_dataSpan, msg.m_fds);
-            return;
+        if (o && o->m_id == msg.m_object) {
+            object = o;
+            break;
         }
     }
 
-    Debug::log(WARN, "[{} @ {:.3f}] -> Generic message not handled. No object with id {}!", m_fd.get(), steadyMillis(), msg.m_object);
+    if (!object) {
+        Debug::log(ERR, "[{} @ {:.3f}] -> Generic message references unknown object {}", m_fd.get(), steadyMillis(), msg.m_object);
+        disconnectOnError();
+        return;
+    }
+
+    object->called(msg.m_method, msg.m_dataSpan, msg.m_fds);
+}
+
+void CClientSocket::destroyObject(uint32_t id) {
+    std::erase_if(m_objects, [id](const auto& obj) { return obj && obj->m_id == id; });
+}
+
+void CClientSocket::collectOrphanedObjects() {
+    std::erase_if(m_objects, [](const auto& obj) {
+        if (!obj)
+            return true;
+
+        if (obj->m_id == 0)
+            return false;
+
+        return obj.strongRef() == 1;
+    });
 }
 
 SP<IObject> CClientSocket::objectForId(uint32_t id) {

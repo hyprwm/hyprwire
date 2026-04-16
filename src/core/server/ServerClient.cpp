@@ -4,7 +4,9 @@
 #include "../message/messages/IMessage.hpp"
 #include "../message/messages/NewObject.hpp"
 #include "../message/messages/GenericProtocolMessage.hpp"
+#include "../message/messages/FatalProtocolError.hpp"
 #include "../../helpers/Log.hpp"
+#include "../../helpers/Syscalls.hpp"
 #include "../../Macros.hpp"
 
 #include <hyprwire/core/implementation/ServerImpl.hpp>
@@ -80,13 +82,13 @@ void CServerClient::sendMessage(const IMessage& message) {
     }
 
     while (m_fd.isValid()) {
-        int ret = sendmsg(m_fd.get(), &msg, 0);
+        int ret = Syscalls::sendmsg(m_fd.get(), &msg, 0);
         if (ret < 0 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
             pollfd pfd = {
                 .fd     = m_fd.get(),
                 .events = POLLOUT | POLLWRBAND,
             };
-            poll(&pfd, 1, -1);
+            Syscalls::poll(&pfd, 1, -1);
         } else
             break;
     }
@@ -143,6 +145,10 @@ SP<CServerObject> CServerClient::createObject(const std::string& protocol, const
     return obj;
 }
 
+void CServerClient::destroyObject(uint32_t id) {
+    std::erase_if(m_objects, [id](const auto& obj) { return obj && obj->m_id == id; });
+}
+
 void CServerClient::onBind(SP<CServerObject> obj) {
     for (const auto& p : m_server->m_impls) {
         if (p->protocol()->specName() != obj->m_protocolName)
@@ -162,14 +168,24 @@ void CServerClient::onBind(SP<CServerObject> obj) {
 }
 
 void CServerClient::onGeneric(const CGenericProtocolMessage& msg) {
+    SP<CServerObject> object;
+
     for (const auto& o : m_objects) {
-        if (o->m_id == msg.m_object) {
-            o->called(msg.m_method, msg.m_dataSpan, msg.m_fds);
-            return;
+        if (o && o->m_id == msg.m_object) {
+            object = o;
+            break;
         }
     }
 
-    Debug::log(WARN, "[{} @ {:.3f}] -> Generic message not handled. No object with id {}!", m_fd.get(), steadyMillis(), msg.m_object);
+    if (!object) {
+        const auto error = std::format("generic message references unknown object {}", msg.m_object);
+        Debug::log(ERR, "[{} @ {:.3f}] -> {}", m_fd.get(), steadyMillis(), error);
+        sendMessage(CFatalErrorMessage(msg.m_object, static_cast<uint32_t>(-1), error));
+        m_error = true;
+        return;
+    }
+
+    object->called(msg.m_method, msg.m_dataSpan, msg.m_fds);
 }
 
 int CServerClient::getPID() {

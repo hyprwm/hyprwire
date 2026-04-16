@@ -8,6 +8,7 @@
 
 #include <vector>
 #include <sys/poll.h>
+#include <chrono>
 
 namespace Hyprwire {
     class IMessage;
@@ -33,11 +34,16 @@ namespace Hyprwire {
         virtual void                                   roundtrip();
         virtual bool                                   isHandshakeDone();
 
+        static void                                    setHandshakeTimeoutForTests(std::chrono::milliseconds timeout);
+        static void                                    resetHandshakeTimeoutForTests();
+
         void                                           sendMessage(const IMessage& message);
         void                                           serverSpecs(const std::vector<std::string>& s);
         void                                           recheckPollFds();
         void                                           onSeq(uint32_t seq, uint32_t id);
         void                                           onGeneric(const CGenericProtocolMessage& msg);
+        void                                           destroyObject(uint32_t id);
+        void                                           collectOrphanedObjects();
         SP<CClientObject>                              makeObject(const std::string& protocolName, const std::string& objectName, uint32_t seq);
         void                                           waitForObject(SP<IWireObject>);
 

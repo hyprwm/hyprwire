@@ -51,10 +51,10 @@ int                                main(int argc, char** argv, char** envp) {
 
     int pips2[2];
     int pips3[2];
-    
+
     sc<void>(pipe(pips2));
     sc<void>(pipe(pips3));
-    
+
     sc<void>(write(pips2[1], "o kurwa", 7));
     sc<void>(write(pips3[1], "bober!!", 7));
 

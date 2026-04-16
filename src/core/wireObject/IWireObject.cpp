@@ -4,6 +4,7 @@
 #include "../../helpers/Log.hpp"
 #include "../../helpers/FFI.hpp"
 #include "../client/ClientObject.hpp"
+#include "../server/ServerObject.hpp"
 #include "../message/MessageType.hpp"
 #include "../message/MessageParser.hpp"
 #include "../message/MessageMagic.hpp"
@@ -18,6 +19,30 @@
 
 using namespace Hyprwire;
 using namespace Hyprutils::Utils;
+
+namespace {
+    void destroyIfNeeded(Hyprwire::IWireObject* obj, const Hyprwire::SMethod& method) {
+        if (!method.isDestructor)
+            return;
+
+        obj->m_destroyed = true;
+
+        const auto id = obj->m_id;
+        if (id == 0)
+            return;
+
+        if (obj->server()) {
+            auto serverObj = reinterpret_cast<Hyprwire::CServerObject*>(obj);
+            if (serverObj->m_client)
+                serverObj->m_client->destroyObject(id);
+            return;
+        }
+
+        auto clientObj = reinterpret_cast<Hyprwire::CClientObject*>(obj);
+        if (clientObj->m_client)
+            clientObj->m_client->destroyObject(id);
+    }
+}
 
 IWireObject::~IWireObject() = default;
 
@@ -49,6 +74,9 @@ uint32_t IWireObject::call(uint32_t id, ...) {
         error(m_id, MSG);
         return 0;
     }
+
+    if (method.isDestructor)
+        m_destroyed = true;
 
     // encode the message
     std::vector<uint8_t> data;
@@ -224,10 +252,13 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
         return;
     }
 
-    if (m_listeners.size() <= id || m_listeners.at(id) == nullptr)
-        return;
+    const auto& method = METHODS.at(id);
 
-    const auto&          method = METHODS.at(id);
+    if (m_listeners.size() <= id || m_listeners.at(id) == nullptr) {
+        destroyIfNeeded(this, method);
+        return;
+    }
+
     std::vector<uint8_t> params;
 
     if (!method.returnsType.empty())
@@ -511,4 +542,6 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
 
     auto fptr = reinterpret_cast<void (*)()>(m_listeners.at(id));
     ffi_call(&cif, fptr, nullptr, avalues.data());
+
+    destroyIfNeeded(this, method);
 }

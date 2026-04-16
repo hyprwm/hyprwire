@@ -26,6 +26,7 @@ namespace Hyprwire {
 
         std::vector<void*>                  m_listeners;
         uint32_t                            m_id = 0, m_version = 0, m_seq = 1;
+        bool                                m_destroyed = false;
         std::string                         m_protocolName;
 
         SP<IProtocolObjectSpec>             m_spec;

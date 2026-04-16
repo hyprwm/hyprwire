@@ -13,6 +13,7 @@ namespace Hyprwire {
       public:
         CFatalErrorMessage(const std::vector<uint8_t>& data, size_t offset);
         CFatalErrorMessage(SP<IWireObject> obj, uint32_t errorId, const std::string_view& msg);
+        CFatalErrorMessage(uint32_t objectId, uint32_t errorId, const std::string_view& msg);
 
         virtual ~CFatalErrorMessage() = default;
 

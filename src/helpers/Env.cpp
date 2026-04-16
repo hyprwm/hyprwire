@@ -6,6 +6,11 @@
 using namespace Hyprwire;
 using namespace Hyprwire::Env;
 
+namespace {
+    bool g_traceCached = false;
+    bool g_trace       = false;
+}
+
 bool Hyprwire::Env::envEnabled(const std::string& env) {
     auto ret = getenv(env.c_str());
     if (!ret)
@@ -17,6 +22,15 @@ bool Hyprwire::Env::envEnabled(const std::string& env) {
 }
 
 bool Hyprwire::Env::isTrace() {
-    static bool TRACE = envEnabled("HW_TRACE");
-    return TRACE;
+    if (!g_traceCached) {
+        g_trace       = envEnabled("HW_TRACE");
+        g_traceCached = true;
+    }
+
+    return g_trace;
+}
+
+void Hyprwire::Env::resetTraceCache() {
+    g_traceCached = false;
+    g_trace       = false;
 }
