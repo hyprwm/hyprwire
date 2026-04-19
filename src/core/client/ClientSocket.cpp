@@ -382,6 +382,9 @@ void CClientSocket::collectOrphanedObjects() {
         if (obj->m_id == 0)
             return false;
 
+        if (obj->getData() || !obj->m_listeners.empty())
+            return false;
+
         return obj.strongRef() == 1;
     });
 }
