@@ -144,12 +144,9 @@ bool CClientSocket::dispatchEvents(bool block) {
     if (m_handshakeDone)
         Syscalls::poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
 
-    if (m_pollfds[0].revents & POLLHUP)
-        return false;
-
     if (!(m_pollfds[0].revents & POLLIN)) {
         collectOrphanedObjects();
-        return true;
+        return !(m_pollfds[0].revents & POLLHUP);
     }
 
     // dispatch
