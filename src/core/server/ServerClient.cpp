@@ -11,9 +11,12 @@
 
 #include <hyprwire/core/implementation/ServerImpl.hpp>
 #include <hyprwire/core/implementation/Spec.hpp>
+#include <hyprutils/utils/ScopeGuard.hpp>
 
 #include <sys/socket.h>
 #include <sys/types.h>
+
+#include <algorithm>
 
 #if defined(__FreeBSD__)
 #include <sys/ucred.h>
@@ -37,6 +40,18 @@ CServerClient::~CServerClient() {
 void CServerClient::dispatchFirstPoll() {
     if (m_firstPollDone)
         return;
+
+    auto x = Hyprutils::Utils::CScopeGuard([this] {
+        if (!m_server) {
+            TRACE(Debug::log(TRACE, "[{}] dispatchFirstPoll: no server?", m_fd.get()));
+            return;
+        }
+
+        if (m_server->m_newClientHandler)
+            m_server->m_newClientHandler(m_self.lock());
+
+        setupExposedProtocols();
+    });
 
     m_firstPollDone = true;
 
@@ -124,6 +139,12 @@ SP<CServerObject> CServerClient::createObject(const std::string& protocol, const
         if (p->protocol()->specName() != protocol)
             continue;
 
+        if (!std::ranges::contains(m_exposedProtocols, protocol)) {
+            Debug::log(ERR, "[{} @ {:.3f}] Error: createObject on a non-exposed protocol", m_fd.get(), steadyMillis());
+            m_error = true;
+            return nullptr;
+        }
+
         for (const auto& s : p->protocol()->objects()) {
             if (s->objectName() != object && !object.empty())
                 continue;
@@ -209,4 +230,28 @@ void CServerClient::onGeneric(const CGenericProtocolMessage& msg) {
 
 int CServerClient::getPID() {
     return m_pid;
+}
+
+void CServerClient::setProtocolFilter(std::function<bool(std::string_view)>&& fn) {
+    m_protocolFilter = std::move(fn);
+}
+
+void CServerClient::setupExposedProtocols() {
+    for (const auto& i : m_server->m_impls) {
+        const auto NAME = i->protocol()->specName();
+
+        if (!m_protocolFilter) {
+            Debug::log(TRACE, "[{} @ {:.3f}] Exposing {} (no filter set up)", m_fd.get(), steadyMillis(), NAME);
+            m_exposedProtocols.emplace_back(NAME);
+            continue;
+        }
+
+        if (!m_protocolFilter(NAME)) {
+            Debug::log(TRACE, "[{} @ {:.3f}] Not exposing {} (filter failed)", m_fd.get(), steadyMillis(), NAME);
+            continue;
+        }
+
+        Debug::log(TRACE, "[{} @ {:.3f}] Exposing {} (filter passed)", m_fd.get(), steadyMillis(), NAME);
+        m_exposedProtocols.emplace_back(NAME);
+    }
 }

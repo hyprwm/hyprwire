@@ -93,6 +93,11 @@ size_t CMessageParser::parseSingleMessage(SSocketRawParsedMessage& raw, size_t o
             std::vector<std::string> protocolNames;
             protocolNames.reserve(client->m_server->m_impls.size());
             for (const auto& impl : client->m_server->m_impls) {
+
+                // skip filtered out protocols
+                if (!std::ranges::contains(client->m_exposedProtocols, impl->protocol()->specName()))
+                    continue;
+
                 protocolNames.emplace_back(std::format("{}@{}", impl->protocol()->specName(), impl->protocol()->specVer()));
             }
             client->sendMessage(CHandshakeProtocolsMessage(protocolNames));
