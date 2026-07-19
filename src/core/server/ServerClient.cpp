@@ -141,6 +141,7 @@ SP<CServerObject> CServerClient::createObject(const std::string& protocol, const
 
         if (!std::ranges::contains(m_exposedProtocols, protocol)) {
             Debug::log(ERR, "[{} @ {:.3f}] Error: createObject on a non-exposed protocol", m_fd.get(), steadyMillis());
+            sendMessage(CFatalErrorMessage(obj->m_id, static_cast<uint32_t>(-1), "Invalid protocol"));
             m_error = true;
             return nullptr;
         }
@@ -157,6 +158,7 @@ SP<CServerObject> CServerClient::createObject(const std::string& protocol, const
 
         if (!obj->m_spec) {
             Debug::log(ERR, "[{} @ {:.3f}] Error: createObject has no spec", m_fd.get(), steadyMillis());
+            sendMessage(CFatalErrorMessage(obj->m_id, static_cast<uint32_t>(-1), "Invalid protocol"));
             m_error = true;
             return nullptr;
         }
@@ -164,6 +166,7 @@ SP<CServerObject> CServerClient::createObject(const std::string& protocol, const
         if (p->protocol()->specVer() < version) {
             Debug::log(ERR, "[{} @ {:.3f}] Error: createObject for protocol {} object {} for version {}, but we have only {}", m_fd.get(), steadyMillis(), obj->m_protocolName,
                        object, version, p->protocol()->specVer());
+            sendMessage(CFatalErrorMessage(obj->m_id, static_cast<uint32_t>(-1), std::format("Invalid protocol version ({} > {})", version, p->protocol()->specVer())));
             m_error = true;
             return nullptr;
         }
@@ -173,6 +176,7 @@ SP<CServerObject> CServerClient::createObject(const std::string& protocol, const
 
     if (!obj->m_spec) {
         Debug::log(ERR, "[{} @ {:.3f}] Error: createObject has no spec", m_fd.get(), steadyMillis());
+        sendMessage(CFatalErrorMessage(obj->m_id, static_cast<uint32_t>(-1), "Invalid protocol"));
         m_error = true;
         return nullptr;
     }
