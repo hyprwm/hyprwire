@@ -26,6 +26,7 @@ stdenv.mkDerivation {
     hyprutils
     libffi
     pugixml
+    gtest
   ];
 
   meta = {
