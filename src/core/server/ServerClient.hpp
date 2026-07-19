@@ -17,28 +17,33 @@ namespace Hyprwire {
         CServerClient(int fd);
         virtual ~CServerClient();
 
-        virtual int                    getPID();
+        virtual int                           getPID() override;
+        virtual void                          setProtocolFilter(std::function<bool(std::string_view)>&& fn) override;
 
-        void                           sendMessage(const IMessage& message);
-        SP<CServerObject>              createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq);
-        void                           destroyObject(uint32_t id);
-        void                           onBind(SP<CServerObject> obj);
-        void                           onGeneric(const CGenericProtocolMessage& msg);
-        void                           dispatchFirstPoll();
+        void                                  sendMessage(const IMessage& message);
+        SP<CServerObject>                     createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq);
+        void                                  destroyObject(uint32_t id);
+        void                                  onBind(SP<CServerObject> obj);
+        void                                  onGeneric(const CGenericProtocolMessage& msg);
+        void                                  dispatchFirstPoll();
+        void                                  setupExposedProtocols();
 
-        Hyprutils::OS::CFileDescriptor m_fd;
+        Hyprutils::OS::CFileDescriptor        m_fd;
 
-        int                            m_pid           = -1;
-        bool                           m_firstPollDone = false;
+        int                                   m_pid           = -1;
+        bool                                  m_firstPollDone = false;
 
-        uint32_t                       m_version = 0, m_maxId = 1;
-        bool                           m_error = false;
+        uint32_t                              m_version = 0, m_maxId = 1;
+        bool                                  m_error = false;
 
-        uint32_t                       m_scheduledRoundtripSeq = 0;
+        uint32_t                              m_scheduledRoundtripSeq = 0;
 
-        std::vector<SP<CServerObject>> m_objects;
+        std::vector<SP<CServerObject>>        m_objects;
 
-        WP<CServerSocket>              m_server;
-        WP<CServerClient>              m_self;
+        WP<CServerSocket>                     m_server;
+        WP<CServerClient>                     m_self;
+
+        std::function<bool(std::string_view)> m_protocolFilter;
+        std::vector<std::string>              m_exposedProtocols;
     };
 };

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <hyprutils/memory/SharedPtr.hpp>
+#include <functional>
+#include <string_view>
 
 namespace Hyprwire {
     class IProtocolServerImplementation;
@@ -11,6 +13,13 @@ namespace Hyprwire {
         virtual ~IServerClient();
 
         virtual int getPID() = 0;
+
+        /*
+            Set a protocol filter. If the function returns false,
+            the protocol will not be exposed in the handshake, and will not 
+            be bindable.
+        */
+        virtual void setProtocolFilter(std::function<bool(std::string_view)>&& fn) = 0;
 
       protected:
         IServerClient() = default;
@@ -56,6 +65,12 @@ namespace Hyprwire {
             Returns true if it removed anything.
         */
         virtual bool removeClient(int fd) = 0;
+
+        /*
+            Add a listener to each new client. This is emitted before we even
+            start a handshake, and is mostly exposed for setting up filters.
+        */
+        virtual void setNewClientHandler(std::function<void(Hyprutils::Memory::CSharedPointer<IServerClient>)>&& fn) = 0;
 
       protected:
         IServerSocket() = default;

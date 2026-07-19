@@ -21,12 +21,13 @@ namespace Hyprwire {
         bool                                           attempt(const std::string& path);
         bool                                           attemptEmpty();
 
-        virtual void                                   addImplementation(SP<IProtocolServerImplementation>&&);
-        virtual bool                                   dispatchEvents(bool block);
-        virtual int                                    extractLoopFD();
-        virtual SP<IObject>                            createObject(SP<IServerClient> client, SP<IObject> reference, const std::string& object, uint32_t seq);
-        virtual SP<IServerClient>                      addClient(int fd);
-        virtual bool                                   removeClient(int fd);
+        virtual void                                   addImplementation(SP<IProtocolServerImplementation>&&) override;
+        virtual bool                                   dispatchEvents(bool block) override;
+        virtual int                                    extractLoopFD() override;
+        virtual SP<IObject>                            createObject(SP<IServerClient> client, SP<IObject> reference, const std::string& object, uint32_t seq) override;
+        virtual SP<IServerClient>                      addClient(int fd) override;
+        virtual bool                                   removeClient(int fd) override;
+        virtual void                                   setNewClientHandler(std::function<void(Hyprutils::Memory::CSharedPointer<IServerClient>)>&& fn) override;
 
         void                                           recheckPollFds();
         bool                                           dispatchNewConnections();
@@ -59,5 +60,10 @@ namespace Hyprwire {
 
         bool                                           m_isEmptyListener = false;
         std::string                                    m_path;
+
+        std::function<void(Hyprutils::Memory::CSharedPointer<IServerClient>)> m_newClientHandler;
+
+      private:
+        SP<CServerClient> createClient(int fd);
     };
 };

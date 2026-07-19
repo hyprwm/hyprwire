@@ -206,7 +206,7 @@ void CServerSocket::clearWakeupFd() {
     clearFd(m_wakeupFd);
 }
 
-SP<IServerClient> CServerSocket::addClient(int fd) {
+SP<CServerClient> CServerSocket::createClient(int fd) {
     auto x = makeShared<CServerClient>(fd);
     if (x->m_fd.isClosed() || !x->m_fd.isValid())
         return nullptr;
@@ -214,6 +214,12 @@ SP<IServerClient> CServerSocket::addClient(int fd) {
     x->m_self   = x;
     x->m_server = m_self;
     m_clients.emplace_back(x);
+
+    return x;
+}
+
+SP<IServerClient> CServerSocket::addClient(int fd) {
+    auto x = createClient(fd);
 
     recheckPollFds();
 
@@ -275,9 +281,13 @@ bool CServerSocket::dispatchNewConnections() {
     sockaddr_in clientAddress = {};
     socklen_t   clientSize    = sizeof(clientAddress);
 
-    auto        x = m_clients.emplace_back(makeShared<CServerClient>(accept(m_fd.get(), (sockaddr*)&clientAddress, &clientSize)));
-    x->m_server   = m_self;
-    x->m_self     = x;
+    int         fd = accept(m_fd.get(), (sockaddr*)&clientAddress, &clientSize);
+    auto        x  = createClient(fd);
+
+    if (!x) {
+        Debug::log(ERR, "[{} @ {:.3f}] Failed to create a new client", fd, steadyMillis());
+        return false;
+    }
 
     recheckPollFds();
 
@@ -436,4 +446,8 @@ SP<IObject> CServerSocket::createObject(SP<IServerClient> clientIface, SP<IObjec
         return nullptr;
 
     return newObject;
+}
+
+void CServerSocket::setNewClientHandler(std::function<void(Hyprutils::Memory::CSharedPointer<IServerClient>)>&& fn) {
+    m_newClientHandler = std::move(fn);
 }
