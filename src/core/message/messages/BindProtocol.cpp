@@ -1,3 +1,4 @@
+#include "../../../RangeCompat.hpp"
 #include "BindProtocol.hpp"
 #include "../MessageType.hpp"
 #include "../MessageParser.hpp"
@@ -67,10 +68,10 @@ CBindProtocolMessage::CBindProtocolMessage(const std::string& protocol, uint32_t
 
     m_data.emplace_back(HW_MESSAGE_MAGIC_TYPE_VARCHAR);
 
-    m_data.append_range(g_messageParser->encodeVarInt(protocol.length()));
-    m_data.append_range(protocol);
+    append_range_compat(m_data, g_messageParser->encodeVarInt(protocol.length()));
+    append_range_compat(m_data, protocol);
 
-    m_data.append_range(std::vector<uint8_t>{HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0});
+    append_range_compat(m_data, std::vector<uint8_t>{HW_MESSAGE_MAGIC_TYPE_UINT, 0, 0, 0, 0});
 
     std::memcpy(&m_data[m_data.size() - 4], &version, sizeof(version));
 

@@ -1,3 +1,4 @@
+#include "../../../RangeCompat.hpp"
 #include "HandshakeBegin.hpp"
 #include "../MessageType.hpp"
 #include "../MessageParser.hpp"
@@ -62,7 +63,7 @@ CHandshakeBeginMessage::CHandshakeBeginMessage(const std::vector<uint32_t>& vers
         HW_MESSAGE_MAGIC_TYPE_UINT,
     };
 
-    m_data.append_range(g_messageParser->encodeVarInt(versions.size()));
+    append_range_compat(m_data, g_messageParser->encodeVarInt(versions.size()));
 
     const size_t HEAD_SIZE = m_data.size();
 

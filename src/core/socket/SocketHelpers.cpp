@@ -1,3 +1,5 @@
+#include "../../RangeCompat.hpp"
+#include "../../RangeCompat.hpp"
 #include "SocketHelpers.hpp"
 
 #include "../../helpers/Log.hpp"
@@ -43,7 +45,7 @@ SSocketRawParsedMessage Hyprwire::parseFromFd(const Hyprutils::OS::CFileDescript
         if (sizeWritten < 0)
             return {.bad = true};
 
-        message.data.append_range(std::span<uint8_t>(buffer, sizeWritten));
+        append_range_compat(message.data, std::span<uint8_t>(buffer, sizeWritten));
 
         // check for control
         cmsghdr* recvdCmsg = CMSG_FIRSTHDR(&msg);

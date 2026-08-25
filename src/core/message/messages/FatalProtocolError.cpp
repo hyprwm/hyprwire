@@ -1,3 +1,4 @@
+#include "../../../RangeCompat.hpp"
 #include "FatalProtocolError.hpp"
 #include "../MessageType.hpp"
 #include "../MessageParser.hpp"
@@ -68,7 +69,7 @@ CFatalErrorMessage::CFatalErrorMessage(uint32_t objectId, uint32_t errorId, cons
     std::memcpy(&m_data[2], &objectId, sizeof(objectId));
     std::memcpy(&m_data[7], &errorId, sizeof(errorId));
 
-    m_data.append_range(g_messageParser->encodeVarInt(msg.size()));
-    m_data.append_range(msg);
+    append_range_compat(m_data, g_messageParser->encodeVarInt(msg.size()));
+    append_range_compat(m_data, msg);
     m_data.emplace_back(HW_MESSAGE_MAGIC_END);
 }

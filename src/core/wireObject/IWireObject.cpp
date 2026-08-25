@@ -1,3 +1,5 @@
+#include "../../RangeCompat.hpp"
+#include "../../RangeCompat.hpp"
 #include "IWireObject.hpp"
 
 #include "../../Macros.hpp"
@@ -146,8 +148,8 @@ uint32_t IWireObject::call(uint32_t id, ...) {
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                 data.emplace_back(HW_MESSAGE_MAGIC_TYPE_VARCHAR);
                 auto str = va_arg(va, const char*);
-                data.append_range(g_messageParser->encodeVarInt(std::string_view(str).size()));
-                data.append_range(std::string_view(str));
+                append_range_compat(data, g_messageParser->encodeVarInt(std::string_view(str).size()));
+                append_range_compat(data, std::string_view(str));
                 break;
             }
 
@@ -158,7 +160,7 @@ uint32_t IWireObject::call(uint32_t id, ...) {
 
                 auto arrayData = va_arg(va, void*);
                 auto arrayLen  = va_arg(va, uint32_t);
-                data.append_range(g_messageParser->encodeVarInt(arrayLen));
+                append_range_compat(data, g_messageParser->encodeVarInt(arrayLen));
 
                 switch (arrType) {
                     case HW_MESSAGE_MAGIC_TYPE_UINT:
@@ -181,8 +183,8 @@ uint32_t IWireObject::call(uint32_t id, ...) {
                     case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                         for (size_t i = 0; i < arrayLen; ++i) {
                             const char* element = rc<const char**>(arrayData)[i];
-                            data.append_range(g_messageParser->encodeVarInt(std::string_view(element).size()));
-                            data.append_range(std::string_view(element));
+                            append_range_compat(data, g_messageParser->encodeVarInt(std::string_view(element).size()));
+                            append_range_compat(data, std::string_view(element));
                         }
                         break;
                     }
@@ -264,7 +266,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
     if (!method.returnsType.empty())
         params.emplace_back(HW_MESSAGE_MAGIC_TYPE_SEQ);
 
-    params.append_range(method.params);
+    append_range_compat(params, method.params);
 
     if (method.since > m_version) {
         const auto MSG = std::format("method {} since {} but has {}", id, method.since, m_version);

@@ -1,3 +1,4 @@
+#include "../../../RangeCompat.hpp"
 #include "HandshakeProtocols.hpp"
 #include "../MessageType.hpp"
 #include "../MessageParser.hpp"
@@ -61,11 +62,11 @@ CHandshakeProtocolsMessage::CHandshakeProtocolsMessage(const std::vector<std::st
         HW_MESSAGE_MAGIC_TYPE_VARCHAR,
     };
 
-    m_data.append_range(g_messageParser->encodeVarInt(protocols.size()));
+    append_range_compat(m_data, g_messageParser->encodeVarInt(protocols.size()));
 
     for (const auto& p : protocols) {
-        m_data.append_range(g_messageParser->encodeVarInt(p.size()));
-        m_data.append_range(p);
+        append_range_compat(m_data, g_messageParser->encodeVarInt(p.size()));
+        append_range_compat(m_data, p);
     }
 
     m_data.emplace_back(HW_MESSAGE_MAGIC_END);
