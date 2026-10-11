@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstdint>
 #include <functional>
+#include <string>
 
 namespace Hyprwire {
     class IProtocolSpec;

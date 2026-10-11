@@ -3,6 +3,7 @@
 #include <hyprutils/memory/SharedPtr.hpp>
 #include <vector>
 #include <cstdint>
+#include <string>
 
 namespace Hyprwire {
     class IProtocolSpec;
