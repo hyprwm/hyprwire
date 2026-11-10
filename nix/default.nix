@@ -22,8 +22,9 @@ stdenv.mkDerivation {
   ]
   ++ lib.optionals doCheck [ gtest ];
 
+  propagatedBuildInputs = [ hyprutils ];
+
   buildInputs = [
-    hyprutils
     libffi
     pugixml
     gtest
