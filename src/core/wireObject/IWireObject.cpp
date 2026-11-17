@@ -12,6 +12,7 @@
 #include <hyprwire/core/types/MessageMagic.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstring>
 #include <string_view>
@@ -42,6 +43,29 @@ namespace {
         if (clientObj->m_client)
             clientObj->m_client->destroyObject(id);
     }
+}
+
+static std::pair<size_t, size_t> parseArgumentLength(const std::span<const uint8_t>& data) {
+    if (data.empty())
+        return {0, 0};
+
+    // encodeVarInt emits at most four bytes. Bound the parser before checking termination.
+    const auto [length, bytes] = g_messageParser->parseVarInt(data.first(std::min(data.size(), size_t{4})));
+    if (!bytes || (data[bytes - 1] & 0x80))
+        return {0, 0};
+
+    return {length, bytes};
+}
+
+static size_t validatedStringLength(const std::span<const uint8_t>& data) {
+    const auto [length, bytes] = parseArgumentLength(data);
+    if (!bytes || length > data.size() - bytes)
+        return 0;
+
+    if (std::ranges::contains(data.subspan(bytes, length), uint8_t{0}))
+        return 0;
+
+    return bytes + length;
 }
 
 IWireObject::~IWireObject() = default;
@@ -254,11 +278,6 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
 
     const auto& method = METHODS.at(id);
 
-    if (m_listeners.size() <= id || m_listeners.at(id) == nullptr) {
-        destroyIfNeeded(this, method);
-        return;
-    }
-
     std::vector<uint8_t> params;
 
     if (!method.returnsType.empty())
@@ -276,6 +295,13 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
     std::vector<ffi_type*> ffiTypes = {&ffi_type_pointer};
     size_t                 dataI    = 0;
     for (size_t i = 0; i < params.size(); ++i) {
+        if (dataI >= data.size()) {
+            const auto MSG = std::format("method {} param idx {} is truncated", id, i);
+            Debug::log(ERR, "core protocol error: {}", MSG);
+            error(m_id, MSG);
+            return;
+        }
+
         const auto PARAM      = sc<eMessageMagic>(params.at(i));
         const auto WIRE_PARAM = sc<eMessageMagic>(data[dataI]);
 
@@ -299,11 +325,25 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
             case HW_MESSAGE_MAGIC_TYPE_OBJECT:
             case HW_MESSAGE_MAGIC_TYPE_SEQ: dataI += 5; break;
             case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
-                auto [a, b] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI + 1], data.size() - dataI});
-                dataI += a + b + 1;
+                const auto length = validatedStringLength(data.subspan(dataI + 1));
+                if (!length) {
+                    const auto MSG = std::format("method {} param idx {} is not a complete NUL-free VARCHAR", id, i);
+                    Debug::log(ERR, "core protocol error: {}", MSG);
+                    error(m_id, MSG);
+                    return;
+                }
+
+                dataI += length + 1;
                 break;
             }
             case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
+                if (data.size() - dataI < 3) {
+                    const auto MSG = std::format("failed demarshaling array message");
+                    Debug::log(ERR, "core protocol error: {}", MSG);
+                    error(m_id, MSG);
+                    return;
+                }
+
                 const auto arrType  = sc<eMessageMagic>(params.at(++i));
                 const auto wireType = sc<eMessageMagic>(data[dataI + 1]);
 
@@ -315,8 +355,15 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                     return;
                 }
 
-                auto [arrLen, lenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI + 2], data.size() - i});
-                size_t arrMessageLen  = 2 + lenLen;
+                const auto [arrLen, lenLen] = parseArgumentLength(data.subspan(dataI + 2));
+                if (!lenLen) {
+                    const auto MSG = std::format("failed demarshaling array message");
+                    Debug::log(ERR, "core protocol error: {}", MSG);
+                    error(m_id, MSG);
+                    return;
+                }
+
+                size_t arrMessageLen = 2 + lenLen;
 
                 if (arrLen > 10000) {
                     // raise protocol error
@@ -339,14 +386,15 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                     }
                     case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                         for (size_t j = 0; j < arrLen; ++j) {
-                            if (dataI + arrMessageLen > data.size()) {
-                                const auto MSG = std::format("failed demarshaling array message");
+                            const auto length = validatedStringLength(data.subspan(dataI + arrMessageLen));
+                            if (!length) {
+                                const auto MSG = std::format("method {} param idx {} array element {} is not a complete NUL-free VARCHAR", id, i, j);
                                 Debug::log(ERR, "core protocol error: {}", MSG);
                                 error(m_id, MSG);
                                 return;
                             }
-                            auto [strLen, strlenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[dataI + arrMessageLen], data.size() - dataI - arrMessageLen});
-                            arrMessageLen += strLen + strlenLen;
+
+                            arrMessageLen += length;
                         }
                         break;
                     }
@@ -371,6 +419,18 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                 return;
             }
         }
+    }
+
+    if (dataI >= data.size() || data[dataI] != HW_MESSAGE_MAGIC_END) {
+        const auto MSG = std::format("method {} has missing end marker or unexpected arguments", id);
+        Debug::log(ERR, "core protocol error: {}", MSG);
+        error(m_id, MSG);
+        return;
+    }
+
+    if (m_listeners.size() <= id || m_listeners.at(id) == nullptr) {
+        destroyIfNeeded(this, method);
+        return;
     }
 
     ffi_cif cif;
@@ -449,7 +509,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
             }
             case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
                 const auto arrType    = sc<eMessageMagic>(data[i + 1]);
-                auto [arrLen, lenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[i + 2], data.size() - i});
+                auto [arrLen, lenLen] = g_messageParser->parseVarInt(data.subspan(i + 2));
                 size_t arrMessageLen  = 2 + lenLen;
 
                 switch (arrType) {
@@ -488,7 +548,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
                         otherBuffers.emplace_back(dataPtr);
 
                         for (size_t j = 0; j < arrLen; ++j) {
-                            auto [strLen, strlenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[i + arrMessageLen], data.size() - i});
+                            auto [strLen, strlenLen] = g_messageParser->parseVarInt(data.subspan(i + arrMessageLen));
                             auto& str  = strings.emplace_back(makeShared<std::string>(std::string_view{rc<const char*>(&data[i + arrMessageLen + strlenLen]), strLen}));
                             dataPtr[j] = str->c_str();
                             arrMessageLen += strlenLen + strLen;

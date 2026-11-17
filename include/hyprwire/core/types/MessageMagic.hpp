@@ -27,6 +27,10 @@ namespace Hyprwire {
 
         /*
             [magic : 1B][len : VLQ][data : len B]
+
+            VARCHAR protocol method arguments must be NUL-free, including array elements.
+            Empty strings are allowed. Callbacks receive NUL-terminated C strings;
+            the terminator is not part of the payload or its length.
         */
         HW_MESSAGE_MAGIC_TYPE_VARCHAR = 0x20,
 
