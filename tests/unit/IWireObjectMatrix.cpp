@@ -10,7 +10,9 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <type_traits>
+#include <vector>
 
 using namespace Hyprwire;
 
@@ -99,6 +101,44 @@ namespace {
 
     void onDestructor(IObject*) {
         ++g_destructorListenerCalls;
+    }
+
+    struct SStringListenerState {
+        size_t                   calls = 0;
+        std::vector<std::string> values;
+    };
+
+    void onString(IObject* object, const char* value) {
+        auto* state = static_cast<SStringListenerState*>(object->getData());
+        ++state->calls;
+        state->values = {value};
+    }
+
+    void onStringArray(IObject* object, const char** values, uint32_t count) {
+        auto* state = static_cast<SStringListenerState*>(object->getData());
+        ++state->calls;
+        state->values.clear();
+        for (size_t i = 0; i < count; ++i)
+            state->values.emplace_back(values[i]);
+    }
+
+    std::vector<uint8_t> makeStringArguments(bool array, const std::vector<std::string>& values) {
+        CMessageParser       parser;
+        std::vector<uint8_t> data;
+        if (array) {
+            data = {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR};
+            data.append_range(parser.encodeVarInt(values.size()));
+        }
+
+        for (const auto& value : values) {
+            if (!array)
+                data.emplace_back(HW_MESSAGE_MAGIC_TYPE_VARCHAR);
+            data.append_range(parser.encodeVarInt(value.size()));
+            data.append_range(value);
+        }
+
+        data.emplace_back(HW_MESSAGE_MAGIC_END);
+        return data;
     }
 
 } // namespace
@@ -287,4 +327,156 @@ TEST(IWireObjectMatrix, CalledMarksDestroyedForDestructorWithListener) {
 
     EXPECT_EQ(g_destructorListenerCalls, 1);
     EXPECT_TRUE(obj->m_destroyed);
+}
+
+TEST(IWireObjectMatrix, CalledRejectsEmbeddedNulStringsBeforeCallbackOrDestruction) {
+    const std::vector<std::string> invalidStrings = {
+        std::string{"\0abc", 4},
+        std::string{"a\0bc", 4},
+        std::string{"abc\0", 4},
+    };
+
+    for (const bool array : {false, true}) {
+        for (const bool withListener : {false, true}) {
+            for (const auto& value : invalidStrings) {
+                // Also reject a bad array element after a valid one.
+                for (size_t validPrefix = 0; validPrefix <= static_cast<size_t>(array); ++validPrefix) {
+                    SCOPED_TRACE(::testing::Message() << "array=" << array << " listener=" << withListener << " prefix=" << validPrefix
+                                                      << " value=" << ::testing::PrintToString(value));
+                    SStringListenerState state;
+                    auto                 obj = makeObject();
+                    obj->setData(&state);
+                    obj->m_methodsIn = {
+                        SMethod{.idx = 0,
+                                .params =
+                                    array ? std::vector<uint8_t>{HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR} : std::vector<uint8_t>{HW_MESSAGE_MAGIC_TYPE_VARCHAR},
+                                .isDestructor = true},
+                    };
+                    if (withListener)
+                        obj->listen(0, array ? fnToVoid(&onStringArray) : fnToVoid(&onString));
+
+                    std::vector<std::string> values(validPrefix, "valid");
+                    values.emplace_back(value);
+                    const auto data = makeStringArguments(array, values);
+                    obj->called(0, data, {});
+
+                    EXPECT_NE(obj->m_lastErrorMsg.find("NUL-free VARCHAR"), std::string::npos);
+                    EXPECT_EQ(state.calls, 0u);
+                    EXPECT_FALSE(obj->m_destroyed);
+                }
+            }
+        }
+    }
+}
+
+TEST(IWireObjectMatrix, CalledAcceptsEmptyAndNormalStrings) {
+    for (const bool withListener : {false, true}) {
+        for (const auto& value : {std::string{}, std::string{"hello"}, std::string(128, 'x')}) {
+            SCOPED_TRACE(::testing::Message() << "listener=" << withListener << " length=" << value.size());
+            SStringListenerState state;
+            auto                 obj = makeObject();
+            obj->setData(&state);
+            obj->m_methodsIn = {
+                SMethod{.idx = 0, .params = {HW_MESSAGE_MAGIC_TYPE_VARCHAR}, .isDestructor = true},
+            };
+            if (withListener)
+                obj->listen(0, fnToVoid(&onString));
+
+            const auto data = makeStringArguments(false, {value});
+            obj->called(0, data, {});
+
+            EXPECT_TRUE(obj->m_lastErrorMsg.empty());
+            EXPECT_EQ(state.calls, withListener ? 1u : 0u);
+            if (withListener) {
+                EXPECT_EQ(state.values, std::vector<std::string>{value});
+            }
+            EXPECT_TRUE(obj->m_destroyed);
+        }
+    }
+}
+
+TEST(IWireObjectMatrix, CalledAcceptsEmptyAndNormalStringArrays) {
+    const std::vector<std::vector<std::string>> cases = {
+        {},
+        {""},
+        {"hello"},
+        {"", "hello", "", std::string(128, 'x')},
+    };
+
+    for (const bool withListener : {false, true}) {
+        for (const auto& values : cases) {
+            SCOPED_TRACE(::testing::Message() << "listener=" << withListener << " values=" << ::testing::PrintToString(values));
+            SStringListenerState state;
+            auto                 obj = makeObject();
+            obj->setData(&state);
+            obj->m_methodsIn = {
+                SMethod{.idx = 0, .params = {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR}, .isDestructor = true},
+            };
+            if (withListener)
+                obj->listen(0, fnToVoid(&onStringArray));
+
+            const auto data = makeStringArguments(true, values);
+            obj->called(0, data, {});
+
+            EXPECT_TRUE(obj->m_lastErrorMsg.empty());
+            EXPECT_EQ(state.calls, withListener ? 1u : 0u);
+            if (withListener) {
+                EXPECT_EQ(state.values, values);
+            }
+            EXPECT_TRUE(obj->m_destroyed);
+        }
+    }
+}
+
+TEST(IWireObjectMatrix, CalledRejectsMalformedStringArgumentsBeforeCallbackOrDestruction) {
+    struct SCase {
+        bool                 array = false;
+        std::vector<uint8_t> data;
+    };
+
+    const std::vector<SCase> cases = {
+        {false, {}},
+        {false, {HW_MESSAGE_MAGIC_TYPE_VARCHAR}},
+        {false, {HW_MESSAGE_MAGIC_TYPE_VARCHAR, 0x80}},
+        {false, {HW_MESSAGE_MAGIC_TYPE_VARCHAR, 0x80, 0x80, 0x80, 0x80, 0}},
+        {false, {HW_MESSAGE_MAGIC_TYPE_VARCHAR, 3, 'a', 'b'}},
+        {false, {HW_MESSAGE_MAGIC_TYPE_VARCHAR, 0}},
+        {false, {HW_MESSAGE_MAGIC_TYPE_VARCHAR, 1, 'a'}},
+        {false, {HW_MESSAGE_MAGIC_TYPE_VARCHAR, 0, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 1, 0, HW_MESSAGE_MAGIC_END}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 0x80}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 0x80, 0x80, 0x80, 0x80, 0}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 1}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 1, 0x80}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 1, 0x80, 0x80, 0x80, 0x80, 0}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 1, 2, 'a'}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 2, 1, 'a'}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 2, 1, 'a', 0x80}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 2, 1, 'a', 2, 'b'}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 0}},
+        {true, {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR, 1, 1, 'a'}},
+    };
+
+    for (const bool withListener : {false, true}) {
+        for (const auto& [array, data] : cases) {
+            SCOPED_TRACE(::testing::Message() << "listener=" << withListener << " data=" << ::testing::PrintToString(data));
+            SStringListenerState state;
+            auto                 obj = makeObject();
+            obj->setData(&state);
+            obj->m_methodsIn = {
+                SMethod{.idx    = 0,
+                        .params = array ? std::vector<uint8_t>{HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_VARCHAR} : std::vector<uint8_t>{HW_MESSAGE_MAGIC_TYPE_VARCHAR},
+                        .isDestructor = true},
+            };
+            if (withListener)
+                obj->listen(0, array ? fnToVoid(&onStringArray) : fnToVoid(&onString));
+
+            obj->called(0, data, {});
+
+            EXPECT_FALSE(obj->m_lastErrorMsg.empty());
+            EXPECT_EQ(state.calls, 0u);
+            EXPECT_FALSE(obj->m_destroyed);
+        }
+    }
 }
