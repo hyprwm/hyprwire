@@ -11,7 +11,6 @@
 
 #include <hyprwire/core/implementation/ServerImpl.hpp>
 #include <hyprwire/core/implementation/Spec.hpp>
-#include <hyprutils/utils/ScopeGuard.hpp>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -27,6 +26,7 @@ using namespace Hyprwire;
 
 CServerClient::CServerClient(int fd) : m_fd(fd) {
     m_fd.setFlags(O_CLOEXEC);
+    readPeerCredentials();
 }
 
 CServerClient::~CServerClient() {
@@ -41,44 +41,46 @@ void CServerClient::dispatchFirstPoll() {
     if (m_firstPollDone)
         return;
 
-    auto x = Hyprutils::Utils::CScopeGuard([this] {
-        if (!m_server) {
-            TRACE(Debug::log(TRACE, "[{}] dispatchFirstPoll: no server?", m_fd.get()));
-            return;
-        }
-
-        if (m_server->m_newClientHandler)
-            m_server->m_newClientHandler(m_self.lock());
-
-        setupExposedProtocols();
-    });
-
     m_firstPollDone = true;
 
-    // get peer's pid
+    if (!m_server) {
+        TRACE(Debug::log(TRACE, "[{}] dispatchFirstPoll: no server?", m_fd.get()));
+        return;
+    }
 
+    if (m_server->m_newClientHandler)
+        m_server->m_newClientHandler(m_self.lock());
+
+    setupExposedProtocols();
+}
+
+void CServerClient::readPeerCredentials() {
 #if defined(__FreeBSD__)
-    struct xucred cred;
+    struct xucred cred = {};
 #elif defined(__OpenBSD__)
-    struct sockpeercred cred;
+    struct sockpeercred cred = {};
 #else
-    ucred cred;
+    ucred cred = {};
 #endif
     socklen_t len = sizeof(cred);
 
 #if defined(__FreeBSD__)
-    if (getsockopt(m_fd.get(), SOL_SOCKET, LOCAL_PEERCRED, &cred, &len) == -1) {
+    const auto RESULT = getsockopt(m_fd.get(), SOL_LOCAL, LOCAL_PEERCRED, &cred, &len);
 #else
-    if (getsockopt(m_fd.get(), SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1) {
+    const auto RESULT = getsockopt(m_fd.get(), SOL_SOCKET, SO_PEERCRED, &cred, &len);
 #endif
-        TRACE(Debug::log(TRACE, "dispatchFirstPoll: failed to get pid"));
+    if (RESULT == -1 || len != sizeof(cred)) {
+        TRACE(Debug::log(TRACE, "[{}] failed to get peer credentials", m_fd.get()));
         return;
     }
 
 #if defined(__FreeBSD__)
-    m_pid = cred.cr_pid;
+    if (cred.cr_version != XUCRED_VERSION || cred.cr_ngroups < 1)
+        return;
+
+    m_peerCredentials = SPeerCredentials{.pid = cred.cr_pid, .uid = cred.cr_uid, .gid = cred.cr_groups[0]};
 #else
-    m_pid = cred.pid;
+    m_peerCredentials = SPeerCredentials{.pid = cred.pid, .uid = cred.uid, .gid = cred.gid};
 #endif
 }
 
@@ -233,7 +235,11 @@ void CServerClient::onGeneric(const CGenericProtocolMessage& msg) {
 }
 
 int CServerClient::getPID() {
-    return m_pid;
+    return m_peerCredentials ? m_peerCredentials->pid : -1;
+}
+
+std::optional<SPeerCredentials> CServerClient::getPeerCredentials() const {
+    return m_peerCredentials;
 }
 
 void CServerClient::setProtocolFilter(std::function<bool(std::string_view)>&& fn) {
