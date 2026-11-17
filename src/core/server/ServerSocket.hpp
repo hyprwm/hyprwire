@@ -65,5 +65,6 @@ namespace Hyprwire {
 
       private:
         SP<CServerClient> createClient(int fd);
+        bool              m_destroying = false;
     };
 };

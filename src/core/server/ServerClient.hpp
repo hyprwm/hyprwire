@@ -20,7 +20,9 @@ namespace Hyprwire {
         virtual int                             getPID() override;
         virtual std::optional<SPeerCredentials> getPeerCredentials() const override;
         virtual void                            setProtocolFilter(std::function<bool(std::string_view)>&& fn) override;
+        virtual void                            setDisconnectHandler(std::function<void()>&& fn) override;
 
+        void                                    disconnect();
         void                                    sendMessage(const IMessage& message);
         SP<CServerObject>                       createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq);
         void                                    destroyObject(uint32_t id);
@@ -49,5 +51,8 @@ namespace Hyprwire {
       private:
         void                            readPeerCredentials();
         std::optional<SPeerCredentials> m_peerCredentials;
+        std::function<void()>           m_disconnectHandler;
+        bool                            m_disconnecting = false;
+        bool                            m_disconnected  = false;
     };
 };

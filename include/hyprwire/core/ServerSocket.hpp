@@ -37,6 +37,15 @@ namespace Hyprwire {
         */
         virtual void setProtocolFilter(std::function<bool(std::string_view)>&& fn) = 0;
 
+        /*
+            Called once after the socket is closed and wire objects are torn down,
+            even if the application retains this client. Runs during dispatch,
+            explicit removal, or server destruction, not on the polling thread.
+            Replaces the previous handler; an empty handler clears it. Installing
+            a handler on an already disconnected client calls it immediately.
+        */
+        virtual void setDisconnectHandler(std::function<void()>&& fn) = 0;
+
       protected:
         IServerClient() = default;
     };

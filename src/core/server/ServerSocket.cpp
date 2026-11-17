@@ -17,7 +17,9 @@
 #include <cerrno>
 #include <unistd.h>
 
+#include <algorithm>
 #include <filesystem>
+#include <utility>
 #include <hyprutils/utils/ScopeGuard.hpp>
 
 using namespace Hyprwire;
@@ -59,6 +61,8 @@ CServerSocket::CServerSocket() {
 }
 
 CServerSocket::~CServerSocket() {
+    m_destroying = true;
+
     if (m_pollThread.joinable()) {
         m_threadCanPoll = false;
         m_pollEvent     = false;
@@ -68,6 +72,11 @@ CServerSocket::~CServerSocket() {
     }
 
     m_fd.reset();
+
+    auto clients = std::exchange(m_clients, {});
+    for (const auto& client : clients) {
+        client->disconnect();
+    }
 
     if (!m_path.empty()) {
         std::error_code ec;
@@ -151,6 +160,7 @@ bool CServerSocket::dispatchPending() {
 }
 
 bool CServerSocket::dispatchEvents(bool block) {
+    const auto SELF = m_self.lock();
 
     m_pollmtx.lock();
 
@@ -207,6 +217,11 @@ void CServerSocket::clearWakeupFd() {
 }
 
 SP<CServerClient> CServerSocket::createClient(int fd) {
+    if (m_destroying) {
+        CFileDescriptor closed{fd};
+        return nullptr;
+    }
+
     auto x = makeShared<CServerClient>(fd);
     if (x->m_fd.isClosed() || !x->m_fd.isValid())
         return nullptr;
@@ -219,7 +234,8 @@ SP<CServerClient> CServerSocket::createClient(int fd) {
 }
 
 SP<IServerClient> CServerSocket::addClient(int fd) {
-    auto x = createClient(fd);
+    std::lock_guard lock(m_pollmtx);
+    auto            x = createClient(fd);
 
     recheckPollFds();
 
@@ -230,12 +246,18 @@ SP<IServerClient> CServerSocket::addClient(int fd) {
 }
 
 bool CServerSocket::removeClient(int fd) {
-    auto r = std::erase_if(m_clients, [&fd](const auto& c) { return c->m_fd.get() == fd; });
+    const auto      SELF = m_self.lock();
+    std::lock_guard lock(m_pollmtx);
+    const auto      it = std::ranges::find_if(m_clients, [fd](const auto& client) { return client->m_fd.get() == fd; });
+    if (it == m_clients.end())
+        return false;
 
-    if (r > 0)
-        recheckPollFds();
+    auto client = *it;
+    m_clients.erase(it);
+    recheckPollFds();
+    client->disconnect();
 
-    return r > 0;
+    return true;
 }
 
 size_t CServerSocket::internalFds() {
@@ -295,36 +317,48 @@ bool CServerSocket::dispatchNewConnections() {
 }
 
 bool CServerSocket::dispatchExistingConnections() {
-    bool hadAny           = false;
-    bool needsPollRecheck = false;
+    struct SReadyClient {
+        SP<CServerClient> client;
+        short             events = 0;
+    };
 
+    std::vector<SReadyClient> ready;
+    bool                      needsPollRecheck = false;
+
+    // Request handlers may add or remove clients, invalidating the live poll list.
     for (size_t i = internalFds(); i < m_pollfds.size(); ++i) {
-        if (!(m_pollfds.at(i).revents & POLLIN))
-            continue;
+        const auto& client = m_clients.at(i - internalFds());
+        const auto  events = m_pollfds.at(i).revents;
+        if (client->m_error || (events & (POLLIN | POLLHUP | POLLERR | POLLNVAL)))
+            ready.push_back({client, events});
+    }
 
-        dispatchClient(m_clients.at(i - internalFds()));
+    for (const auto& [client, events] : ready) {
+        if (!client->m_error && (events & POLLIN))
+            dispatchClient(client);
 
-        hadAny = true;
+        if (events & (POLLHUP | POLLERR | POLLNVAL))
+            client->m_error = true;
 
-        if (m_pollfds.at(i).revents & POLLHUP) {
-            m_clients.at(i - internalFds())->m_error = true;
-            needsPollRecheck                         = true;
-            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (hangup)", m_clients.at(i - internalFds())->m_fd.get(), steadyMillis()));
-            continue;
-        }
-
-        if (m_clients.at(i - internalFds())->m_error) {
-            needsPollRecheck = true;
-            TRACE(Debug::log(TRACE, "[{} @ {:.3f}] Dropping client (protocol error)", m_clients.at(i - internalFds())->m_fd.get(), steadyMillis()));
-        }
+        needsPollRecheck |= client->m_error;
     }
 
     if (needsPollRecheck) {
-        std::erase_if(m_clients, [](const auto& c) { return c->m_error; });
+        std::vector<SP<CServerClient>> disconnected;
+        std::erase_if(m_clients, [&](const auto& client) {
+            if (!client->m_error)
+                return false;
+            disconnected.emplace_back(client);
+            return true;
+        });
         recheckPollFds();
+
+        for (const auto& client : disconnected) {
+            client->disconnect();
+        }
     }
 
-    return hadAny;
+    return !ready.empty();
 }
 
 void CServerSocket::dispatchClient(SP<CServerClient> client) {
@@ -336,8 +370,10 @@ void CServerSocket::dispatchClient(SP<CServerClient> client) {
         return;
     }
 
-    if (data.data.empty()) // this should NOT happen
+    if (data.data.empty()) {
+        client->m_error = true;
         return;
+    }
 
     const auto RET = g_messageParser->handleMessage(data, client);
 

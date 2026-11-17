@@ -12,6 +12,7 @@
 #include <cstdarg>
 #include <cstring>
 #include <string_view>
+#include <utility>
 #include <ffi.h>
 
 using namespace Hyprwire;
@@ -21,7 +22,7 @@ CServerObject::CServerObject(SP<CServerClient> client) : m_client(client) {
 }
 
 CServerObject::~CServerObject() {
-    TRACE(Debug::log(TRACE, "[{}] destroying object {}", m_client->m_fd.get(), m_id));
+    TRACE(Debug::log(TRACE, "[{}] destroying object {}", m_client ? m_client->m_fd.get() : -1, m_id));
 }
 
 const std::vector<SMethod>& CServerObject::methodsOut() {
@@ -70,11 +71,8 @@ void CServerObject::sendDestroyIfNeeded() {
     if (!m_onDestroy)
         return;
 
-    TRACE(Debug::log(TRACE, "[{}] object {}: calling onDestroy from sendDestroyIfNeeded", m_client->m_fd.get(), m_id));
+    TRACE(Debug::log(TRACE, "[{}] object {}: calling onDestroy from sendDestroyIfNeeded", m_client ? m_client->m_fd.get() : -1, m_id));
 
-    m_onDestroy();
-
-    // remove onDestroy: this object is already dead,
-    // and we don't want to call it twice
-    m_onDestroy = nullptr;
+    auto handler = std::exchange(m_onDestroy, {});
+    handler();
 }
