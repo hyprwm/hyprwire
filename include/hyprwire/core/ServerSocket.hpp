@@ -2,17 +2,33 @@
 
 #include <hyprutils/memory/SharedPtr.hpp>
 #include <functional>
+#include <optional>
 #include <string_view>
+#include <sys/types.h>
 
 namespace Hyprwire {
     class IProtocolServerImplementation;
     class IObject;
+
+    struct SPeerCredentials {
+        pid_t pid = -1;
+        uid_t uid = static_cast<uid_t>(-1);
+        gid_t gid = static_cast<gid_t>(-1);
+    };
 
     class IServerClient {
       public:
         virtual ~IServerClient();
 
         virtual int getPID() = 0;
+
+        /*
+            Socket peer credentials captured when the client is added, before the
+            new-client handler or handshake. Empty if they could not be obtained.
+            These remain a snapshot, not the current credentials of a process or
+            an attestation of the original sender behind a forwarded socket.
+        */
+        virtual std::optional<SPeerCredentials> getPeerCredentials() const = 0;
 
         /*
             Set a protocol filter. If the function returns false,
