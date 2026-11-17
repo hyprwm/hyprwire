@@ -7,6 +7,7 @@
 #include "../wireObject/IWireObject.hpp"
 
 #include <vector>
+#include <unordered_map>
 #include <sys/poll.h>
 #include <chrono>
 
@@ -17,8 +18,8 @@ namespace Hyprwire {
 
     class CClientSocket : public IClientSocket {
       public:
-        CClientSocket()          = default;
-        virtual ~CClientSocket() = default;
+        CClientSocket() = default;
+        virtual ~CClientSocket();
 
         bool                                           attempt(const std::string& path);
         bool                                           attemptFromFd(const int fd);
@@ -29,6 +30,7 @@ namespace Hyprwire {
         virtual bool                                   waitForHandshake();
         virtual SP<IProtocolSpec>                      getSpec(const std::string& name);
         virtual SP<IObject>                            bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version);
+        virtual void                                   bindProtocolAsync(const SP<IProtocolSpec>& spec, uint32_t version, std::function<void(SP<IObject>)>&& completion);
         virtual SP<IObject>                            objectForId(uint32_t id);
         virtual SP<IObject>                            objectForSeq(uint32_t seq);
         virtual void                                   roundtrip();
@@ -70,5 +72,10 @@ namespace Hyprwire {
 
         uint32_t                              m_lastAckdRoundtripSeq = 0;
         uint32_t                              m_lastSentRoundtripSeq = 0;
+
+      private:
+        SP<CClientObject>                                              beginBindProtocol(const SP<IProtocolSpec>& spec, uint32_t version);
+
+        std::unordered_map<uint32_t, std::function<void(SP<IObject>)>> m_pendingBinds;
     };
 };

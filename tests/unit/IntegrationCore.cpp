@@ -3,7 +3,15 @@
 #include <hyprwire/hyprwire.hpp>
 #include <hyprwire/core/types/MessageMagic.hpp>
 
+#include "core/wireObject/IWireObject.hpp"
+#include "core/message/messages/FatalProtocolError.hpp"
+#include "core/message/messages/NewObject.hpp"
+#include "helpers/Syscalls.hpp"
+#include <hyprutils/utils/ScopeGuard.hpp>
+
 #include <atomic>
+#include <array>
+#include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -20,9 +28,6 @@ using namespace Hyprwire;
 using namespace Hyprutils::Memory;
 
 namespace {
-
-    template <typename T>
-    using SP = CSharedPointer<T>;
 
     template <typename Fn>
     void* fnToVoid(Fn fn) {
@@ -155,7 +160,7 @@ namespace {
 
     class CIntegrationHarness {
       public:
-        CIntegrationHarness() {
+        explicit CIntegrationHarness(bool manualPump = false, bool notifyOnBind = false) : m_manualPump(manualPump), m_notifyOnBind(notifyOnBind) {
             int fds[2] = {-1, -1};
             if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != 0)
                 throw std::runtime_error("socketpair failed");
@@ -170,6 +175,7 @@ namespace {
 
             m_server->addImplementation(std::move(m_serverImpl));
             m_serverClient = m_server->addClient(fds[0]);
+            m_serverFD     = fds[0];
             if (!m_serverClient)
                 throw std::runtime_error("server addClient failed");
 
@@ -178,6 +184,9 @@ namespace {
                 throw std::runtime_error("client open failed");
 
             m_client->addImplementation(std::move(m_clientImpl));
+
+            if (m_manualPump)
+                return;
 
             m_pumpThread = std::thread([this] {
                 while (!m_stopPump) {
@@ -192,9 +201,17 @@ namespace {
             m_stopPump = true;
             if (m_pumpThread.joinable())
                 m_pumpThread.join();
+            m_client.reset();
         }
 
         bool waitForHandshake() {
+            if (m_manualPump) {
+                for (size_t i = 0; i < 4 && !m_client->isHandshakeDone(); ++i) {
+                    if (!m_server->dispatchEvents(false) || !m_client->dispatchEvents(false))
+                        return false;
+                }
+                return m_client->isHandshakeDone();
+            }
             return m_client->waitForHandshake();
         }
 
@@ -203,15 +220,15 @@ namespace {
             if (!manager)
                 return nullptr;
 
+            attachManagerClientListener(manager);
+            return manager;
+        }
+
+        void attachManagerClientListener(const SP<IObject>& manager) {
             manager->setData(this);
             manager->listen(0, fnToVoid(&CIntegrationHarness::onManagerNotify));
-
-            {
-                std::scoped_lock lock(m_stateMutex);
-                m_managerClientObject = manager;
-            }
-
-            return manager;
+            std::scoped_lock lock(m_stateMutex);
+            m_managerClientObject = manager;
         }
 
         bool pumpClientUntil(const std::function<bool()>& pred, std::chrono::milliseconds timeout = std::chrono::milliseconds(1500)) {
@@ -244,6 +261,22 @@ namespace {
 
         bool dispatchClient() {
             return m_client->dispatchEvents(false);
+        }
+
+        bool dispatchServer() {
+            return m_server->dispatchEvents(false);
+        }
+
+        int serverFD() {
+            return m_serverFD;
+        }
+
+        SP<IServerClient> serverClient() {
+            return m_serverClient;
+        }
+
+        void releaseClient() {
+            m_client.reset();
         }
 
         int clientFD() {
@@ -362,11 +395,16 @@ namespace {
             obj->listen(1, fnToVoid(&CIntegrationHarness::onManagerMakeChild));
             obj->listen(2, fnToVoid(&CIntegrationHarness::onManagerSendFd));
             obj->listen(3, fnToVoid(&CIntegrationHarness::onManagerSendArray));
+            if (m_notifyOnBind)
+                obj->call(0, "bound");
         }
 
       private:
         std::atomic<bool>                 m_stopPump = false;
         std::thread                       m_pumpThread;
+        bool                              m_manualPump   = false;
+        bool                              m_notifyOnBind = false;
+        int                               m_serverFD     = -1;
 
         SP<IProtocolSpec>                 m_protocolSpec;
         SP<IProtocolServerImplementation> m_serverImpl;
@@ -500,4 +538,334 @@ TEST(IntegrationCore, MalformedMessageDisconnectsClient) {
     }
 
     EXPECT_TRUE(disconnected);
+}
+
+TEST(IntegrationCore, AsyncBindReturnsBeforeReplyAndReceivesImmediateEvents) {
+    int                 completions = 0;
+    SP<IObject>         manager, child;
+    CIntegrationHarness harness(true, true);
+    ASSERT_TRUE(harness.waitForHandshake());
+
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++completions;
+        ASSERT_NE(object, nullptr);
+        manager = object;
+        harness.attachManagerClientListener(manager);
+        manager->call(0, "hello");
+
+        const auto childSeq = manager->call(1);
+        child               = harness.childClientObjectForSeq(childSeq);
+        ASSERT_NE(child, nullptr);
+        harness.attachChildClientListener(child);
+        child->call(0, 41u);
+    });
+
+    // There is no server thread: waiting for the binding reply here would hang.
+    EXPECT_EQ(completions, 0);
+    EXPECT_EQ(manager, nullptr);
+    ASSERT_TRUE(harness.dispatchClient());
+    EXPECT_EQ(completions, 0);
+    ASSERT_TRUE(harness.dispatchServer());
+    EXPECT_EQ(completions, 0);
+    ASSERT_TRUE(harness.dispatchClient());
+    EXPECT_EQ(completions, 1);
+    EXPECT_EQ(harness.clientNotifications(), (std::vector<std::string>{"bound"}));
+
+    // The callback's requests and the child's deferred request are usable normally.
+    for (size_t i = 0; i < 2; ++i) {
+        ASSERT_TRUE(harness.dispatchServer());
+        ASSERT_TRUE(harness.dispatchClient());
+    }
+    EXPECT_EQ(harness.serverPings(), (std::vector<std::string>{"hello"}));
+    EXPECT_EQ(harness.clientNotifications(), (std::vector<std::string>{"bound", "pong"}));
+    EXPECT_EQ(harness.childPingValue(), 41u);
+    EXPECT_EQ(harness.childNotifyValue(), 42u);
+    EXPECT_EQ(completions, 1);
+}
+
+TEST(IntegrationCore, AsyncBindMatchesSequencesAndAllowsReentrantBinds) {
+    std::array<int, 3>         completions = {};
+    std::array<SP<IObject>, 3> objects;
+    CIntegrationHarness        harness(true);
+    ASSERT_TRUE(harness.waitForHandshake());
+
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++completions[0];
+        objects[0] = object;
+        harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> nested) {
+            ++completions[2];
+            objects[2] = nested;
+        });
+    });
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++completions[1];
+        objects[1] = object;
+    });
+
+    // Reply out of order, then duplicate a reply. Completion must follow the sequence.
+    auto replies = CNewObjectMessage(2, 102).m_data;
+    replies.append_range(CNewObjectMessage(1, 101).m_data);
+    replies.append_range(CNewObjectMessage(1, 101).m_data);
+    ASSERT_EQ(write(harness.serverFD(), replies.data(), replies.size()), static_cast<ssize_t>(replies.size()));
+    ASSERT_TRUE(harness.dispatchClient());
+    EXPECT_EQ(completions, (std::array<int, 3>{1, 1, 0}));
+    EXPECT_EQ(objects[0], harness.client()->objectForId(101));
+    EXPECT_EQ(objects[1], harness.client()->objectForId(102));
+
+    replies = CNewObjectMessage(3, 103).m_data;
+    ASSERT_EQ(write(harness.serverFD(), replies.data(), replies.size()), static_cast<ssize_t>(replies.size()));
+    ASSERT_TRUE(harness.dispatchClient());
+    EXPECT_EQ(completions, (std::array<int, 3>{1, 1, 1}));
+    EXPECT_EQ(objects[2], harness.client()->objectForId(103));
+}
+
+TEST(IntegrationCore, AsyncBindRejectionFailsAllPendingOnce) {
+    int                 completions = 0, nestedCompletions = 0;
+    CIntegrationHarness harness(true);
+    harness.serverClient()->setProtocolFilter([](std::string_view) { return false; });
+    ASSERT_TRUE(harness.waitForHandshake());
+
+    for (size_t i = 0; i < 2; ++i) {
+        harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+            ++completions;
+            EXPECT_EQ(object, nullptr);
+            harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> nested) {
+                ++nestedCompletions;
+                EXPECT_EQ(nested, nullptr);
+            });
+        });
+    }
+    EXPECT_EQ(completions, 0);
+    harness.dispatchServer();
+    EXPECT_FALSE(harness.dispatchClient());
+    EXPECT_EQ(completions, 2);
+    EXPECT_EQ(nestedCompletions, 2);
+    EXPECT_EQ(harness.clientFD(), -1);
+    EXPECT_FALSE(harness.dispatchClient());
+    EXPECT_EQ(completions, 2);
+}
+
+TEST(IntegrationCore, AsyncBindPeerEofFailsPendingAndSyncBindReturnsNull) {
+    int                 completions = 0;
+    CIntegrationHarness harness(true);
+    ASSERT_TRUE(harness.waitForHandshake());
+    for (size_t i = 0; i < 2; ++i) {
+        harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+            ++completions;
+            EXPECT_EQ(object, nullptr);
+        });
+    }
+    ASSERT_EQ(shutdown(harness.serverFD(), SHUT_WR), 0);
+    EXPECT_EQ(harness.client()->bindProtocol(harness.protocolSpec(), 1), nullptr);
+    EXPECT_EQ(completions, 2);
+    EXPECT_EQ(harness.clientFD(), -1);
+    EXPECT_FALSE(harness.dispatchClient());
+    EXPECT_EQ(completions, 2);
+}
+
+TEST(IntegrationCore, AsyncBindStopsParsingAfterFatalOrMalformedReply) {
+    const std::vector<std::vector<uint8_t>> errors = {
+        CFatalErrorMessage(0, 1, "rejected").m_data,
+        {0xFF, HW_MESSAGE_MAGIC_END},
+        CNewObjectMessage(1, 0).m_data,
+    };
+    for (const auto& error : errors) {
+        int                 completions = 0;
+        CIntegrationHarness harness(true);
+        ASSERT_TRUE(harness.waitForHandshake());
+        harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+            ++completions;
+            EXPECT_EQ(object, nullptr);
+        });
+
+        auto replies = error;
+        replies.append_range(CNewObjectMessage(1, 101).m_data);
+        ASSERT_EQ(write(harness.serverFD(), replies.data(), replies.size()), static_cast<ssize_t>(replies.size()));
+        EXPECT_FALSE(harness.dispatchClient());
+        EXPECT_EQ(completions, 1);
+        EXPECT_EQ(harness.client()->objectForId(101), nullptr);
+        EXPECT_FALSE(harness.dispatchClient());
+        EXPECT_EQ(completions, 1);
+    }
+}
+
+TEST(IntegrationCore, AsyncBindHangupAfterReplyFailsRemainingBinds) {
+    int                 completed = 0, cancelled = 0;
+    CIntegrationHarness harness(true);
+    ASSERT_TRUE(harness.waitForHandshake());
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++completed;
+        EXPECT_NE(object, nullptr);
+    });
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++cancelled;
+        EXPECT_EQ(object, nullptr);
+    });
+    const auto reply = CNewObjectMessage(1, 101).m_data;
+    ASSERT_EQ(write(harness.serverFD(), reply.data(), reply.size()), static_cast<ssize_t>(reply.size()));
+    ASSERT_EQ(shutdown(harness.serverFD(), SHUT_RDWR), 0);
+    EXPECT_FALSE(harness.dispatchClient());
+    EXPECT_EQ(completed, 1);
+    EXPECT_EQ(cancelled, 1);
+}
+
+TEST(IntegrationCore, AsyncBindPollAndReceiveFailuresDrainPending) {
+    const std::vector<Syscalls::SHooks> failures = {
+        {.poll =
+             [](pollfd* fds, nfds_t, int) {
+                 fds[0].revents = POLLHUP;
+                 return 1;
+             }},
+        {.poll =
+             [](pollfd* fds, nfds_t, int) {
+                 fds[0].revents = POLLERR;
+                 return 1;
+             }},
+        {.poll =
+             [](pollfd* fds, nfds_t, int) {
+                 fds[0].revents = POLLNVAL;
+                 return 1;
+             }},
+        {.poll =
+             [](pollfd*, nfds_t, int) {
+                 errno = EIO;
+                 return -1;
+             }},
+        {.poll =
+             [](pollfd* fds, nfds_t, int) {
+                 fds[0].revents = POLLIN;
+                 return 1;
+             },
+         .recvmsg = [](int, msghdr*, int) -> ssize_t {
+             errno = EIO;
+             return -1;
+         }},
+    };
+    for (const auto& failure : failures) {
+        int                 completions = 0;
+        CIntegrationHarness harness(true);
+        ASSERT_TRUE(harness.waitForHandshake());
+        harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+            ++completions;
+            EXPECT_EQ(object, nullptr);
+        });
+
+        Hyprutils::Utils::CScopeGuard resetHooks([] { Syscalls::resetHooks(); });
+        Syscalls::setHooks(failure);
+        EXPECT_FALSE(harness.dispatchClient());
+        EXPECT_EQ(completions, 1);
+        EXPECT_EQ(harness.clientFD(), -1);
+        EXPECT_FALSE(harness.dispatchClient());
+        EXPECT_EQ(completions, 1);
+    }
+}
+
+TEST(IntegrationCore, AsyncBindHandshakeTimeoutDrainsPending) {
+    int                 completions = 0;
+    CIntegrationHarness harness(true);
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++completions;
+        EXPECT_EQ(object, nullptr);
+    });
+    Hyprutils::Utils::CScopeGuard resetHooks([] { Syscalls::resetHooks(); });
+    Syscalls::setHooks({.poll = [](pollfd*, nfds_t, int) { return 0; }});
+    EXPECT_FALSE(harness.client()->waitForHandshake());
+    EXPECT_EQ(completions, 1);
+}
+
+TEST(IntegrationCore, AsyncBindValidationCanCompleteInline) {
+    for (size_t invalid = 0; invalid < 3; ++invalid) {
+        int                 completions = 0;
+        CIntegrationHarness harness(true);
+        ASSERT_TRUE(harness.waitForHandshake());
+        // Null spec, excessive version, and a discovery-only spec without object definitions.
+        auto spec = invalid == 0 ? SP<IProtocolSpec>{} : invalid == 1 ? harness.protocolSpec() : harness.client()->getSpec("integration_protocol");
+        harness.client()->bindProtocolAsync(spec, invalid == 1 ? 2 : 1, [&](SP<IObject> object) {
+            ++completions;
+            EXPECT_EQ(object, nullptr);
+        });
+        EXPECT_EQ(completions, 1);
+        EXPECT_FALSE(harness.dispatchClient());
+        EXPECT_EQ(completions, 1);
+    }
+}
+
+TEST(IntegrationCore, AsyncBindDestructionCancelsRemainingCompletions) {
+    int                 completions = 0;
+    CIntegrationHarness harness(true);
+    ASSERT_TRUE(harness.waitForHandshake());
+    for (size_t i = 0; i < 2; ++i) {
+        harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+            ++completions;
+            EXPECT_EQ(object, nullptr);
+        });
+    }
+    EXPECT_EQ(completions, 0);
+    harness.releaseClient();
+    EXPECT_EQ(completions, 2);
+}
+
+TEST(IntegrationCore, AsyncBindCompletionCanReleaseSocketAndCancelReentrantBind) {
+    int                 completions = 0, cancelled = 0;
+    CIntegrationHarness harness(true);
+    ASSERT_TRUE(harness.waitForHandshake());
+    WP<IClientSocket> weak = harness.client();
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++completions;
+        ASSERT_NE(object, nullptr);
+        harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> pending) {
+            ++cancelled;
+            EXPECT_EQ(pending, nullptr);
+        });
+        harness.releaseClient();
+        EXPECT_FALSE(weak.expired());
+    });
+    ASSERT_TRUE(harness.dispatchServer());
+    EXPECT_TRUE(harness.dispatchClient());
+    EXPECT_TRUE(weak.expired());
+    EXPECT_EQ(completions, 1);
+    EXPECT_EQ(cancelled, 1);
+}
+
+TEST(IntegrationCore, AsyncBindCallbackErrorStopsLaterEventsAndCompletions) {
+    int                 completed = 0, cancelled = 0;
+    CIntegrationHarness harness(true, true);
+    ASSERT_TRUE(harness.waitForHandshake());
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++completed;
+        ASSERT_NE(object, nullptr);
+        harness.attachManagerClientListener(object);
+        reinterpretPointerCast<IWireObject>(object)->errd();
+    });
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++cancelled;
+        EXPECT_EQ(object, nullptr);
+    });
+    ASSERT_TRUE(harness.dispatchServer());
+    EXPECT_FALSE(harness.dispatchClient());
+    EXPECT_EQ(completed, 1);
+    EXPECT_EQ(cancelled, 1);
+    EXPECT_TRUE(harness.clientNotifications().empty());
+    EXPECT_EQ(harness.clientFD(), -1);
+    EXPECT_FALSE(harness.dispatchClient());
+    EXPECT_EQ(cancelled, 1);
+}
+
+TEST(IntegrationCore, AsyncBindExistingClientErrorDrainsOnNextDispatch) {
+    int                 cancelled = 0;
+    SP<IObject>         manager;
+    CIntegrationHarness harness(true);
+    ASSERT_TRUE(harness.waitForHandshake());
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) { manager = object; });
+    ASSERT_TRUE(harness.dispatchServer());
+    ASSERT_TRUE(harness.dispatchClient());
+    ASSERT_NE(manager, nullptr);
+    harness.client()->bindProtocolAsync(harness.protocolSpec(), 1, [&](SP<IObject> object) {
+        ++cancelled;
+        EXPECT_EQ(object, nullptr);
+    });
+    reinterpretPointerCast<IWireObject>(manager)->errd();
+    EXPECT_FALSE(harness.dispatchClient());
+    EXPECT_EQ(cancelled, 1);
+    EXPECT_EQ(harness.clientFD(), -1);
 }

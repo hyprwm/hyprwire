@@ -25,6 +25,7 @@
 #include <cstring>
 
 #include <filesystem>
+#include <utility>
 #include <hyprutils/utils/ScopeGuard.hpp>
 
 using namespace Hyprwire;
@@ -53,6 +54,10 @@ SP<IClientSocket> IClientSocket::open(const int fd) {
         return nullptr;
 
     return sock;
+}
+
+CClientSocket::~CClientSocket() {
+    disconnectOnError();
 }
 
 bool CClientSocket::attempt(const std::string& path) {
@@ -116,12 +121,18 @@ void CClientSocket::resetHandshakeTimeoutForTests() {
 
 //
 bool CClientSocket::dispatchEvents(bool block) {
+    const auto  self = m_self.lock();
+    CScopeGuard onError([this] {
+        if (m_error)
+            disconnectOnError();
+    });
 
     if (m_error)
         return false;
 
     collectOrphanedObjects();
 
+    int ret = 0;
     if (!m_handshakeDone) {
         const auto elapsed = std::chrono::steady_clock::now() - m_handshakeBegin;
         const auto maxMs   = g_handshakeMax;
@@ -133,7 +144,7 @@ bool CClientSocket::dispatchEvents(bool block) {
         }
 
         const auto timeout = block ? std::chrono::duration_cast<std::chrono::milliseconds>(maxMs - elapsed).count() : 0;
-        int        ret     = Syscalls::poll(m_pollfds.data(), m_pollfds.size(), static_cast<int>(timeout));
+        ret                = Syscalls::poll(m_pollfds.data(), m_pollfds.size(), static_cast<int>(timeout));
         if (block && !ret) {
             Debug::log(ERR, "handshake error: timed out");
             disconnectOnError();
@@ -142,11 +153,23 @@ bool CClientSocket::dispatchEvents(bool block) {
     }
 
     if (m_handshakeDone)
-        Syscalls::poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
+        ret = Syscalls::poll(m_pollfds.data(), m_pollfds.size(), block ? -1 : 0);
 
-    if (!(m_pollfds[0].revents & POLLIN)) {
+    if (ret < 0) {
+        if (errno == EINTR)
+            return !m_error;
+        disconnectOnError();
+        return false;
+    }
+
+    const auto revents = m_pollfds[0].revents;
+    if (!(revents & POLLIN)) {
+        if (revents & (POLLHUP | POLLERR | POLLNVAL)) {
+            disconnectOnError();
+            return false;
+        }
         collectOrphanedObjects();
-        return !(m_pollfds[0].revents & POLLHUP);
+        return !m_error;
     }
 
     // dispatch
@@ -159,13 +182,23 @@ bool CClientSocket::dispatchEvents(bool block) {
         return false;
     }
 
-    if (data.data.empty())
+    if (data.data.empty()) {
+        disconnectOnError();
         return false;
+    }
 
-    const auto RET = g_messageParser->handleMessage(data, m_self.lock());
+    const auto RET = g_messageParser->handleMessage(data, self);
 
     if (RET != MESSAGE_PARSED_OK) {
         Debug::log(ERR, "fatal: failed to handle message on wire");
+        disconnectOnError();
+        return false;
+    }
+
+    if (m_error)
+        return false;
+
+    if (revents & (POLLHUP | POLLERR | POLLNVAL)) {
         disconnectOnError();
         return false;
     }
@@ -256,6 +289,7 @@ void CClientSocket::serverSpecs(const std::vector<std::string>& s) {
 }
 
 bool CClientSocket::waitForHandshake() {
+    const auto self  = m_self.lock();
     m_handshakeBegin = std::chrono::steady_clock::now();
 
     while (!m_error && !m_handshakeDone) {
@@ -279,25 +313,71 @@ SP<IProtocolSpec> CClientSocket::getSpec(const std::string& name) {
 }
 
 void CClientSocket::onSeq(uint32_t seq, uint32_t id) {
-    for (const auto& c : m_objects) {
-        if (c->m_seq == seq) {
-            c->m_id = id;
-            return;
-        }
+    if (m_error)
+        return;
+
+    auto object = reinterpretPointerCast<CClientObject>(objectForSeq(seq));
+    if (!object) {
+        Debug::log(WARN, "[{} @ {:.3f}] -> No object for sequence {} (Would be id {}).!", m_fd.get(), steadyMillis(), seq, id);
+        return;
     }
 
-    Debug::log(WARN, "[{} @ {:.3f}] -> No object for sequence {} (Would be id {}).!", m_fd.get(), steadyMillis(), seq, id);
+    if (!id) {
+        Debug::log(ERR, "invalid object id for sequence {}", seq);
+        disconnectOnError();
+        return;
+    }
+
+    object->m_id = id;
+    // Detach before calling user code: it can bind again or disconnect the socket.
+    auto completion = m_pendingBinds.extract(seq);
+    if (!completion.empty() && completion.mapped())
+        completion.mapped()(object);
 }
 
 SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec, uint32_t version) {
+    const auto self   = m_self.lock();
+    auto       object = beginBindProtocol(spec, version);
+    if (!object)
+        return nullptr;
+
+    waitForObject(object);
+    return !m_error && object->m_id ? object : nullptr;
+}
+
+void CClientSocket::bindProtocolAsync(const SP<IProtocolSpec>& spec, uint32_t version, std::function<void(SP<IObject>)>&& completion) {
+    const auto self   = m_self.lock();
+    auto       object = beginBindProtocol(spec, version);
+    if (!object) {
+        if (completion)
+            completion(nullptr);
+        return;
+    }
+
+    m_pendingBinds.emplace(object->m_seq, std::move(completion));
+}
+
+SP<CClientObject> CClientSocket::beginBindProtocol(const SP<IProtocolSpec>& spec, uint32_t version) {
+    if (m_error || !spec) {
+        disconnectOnError();
+        return nullptr;
+    }
+
     if (version > spec->specVer()) {
         Debug::log(ERR, "version {} is larger than current spec ver of {}", version, spec->specVer());
         disconnectOnError();
         return nullptr;
     }
 
+    const auto objects = spec->objects();
+    if (objects.empty() || !objects.front()) {
+        Debug::log(ERR, "protocol spec has no binding object");
+        disconnectOnError();
+        return nullptr;
+    }
+
     auto object            = makeShared<CClientObject>(m_self.lock());
-    object->m_spec         = spec->objects().front();
+    object->m_spec         = objects.front();
     object->m_seq          = ++m_seq;
     object->m_version      = version;
     object->m_self         = object;
@@ -306,8 +386,6 @@ SP<IObject> CClientSocket::bindProtocol(const SP<IProtocolSpec>& spec, uint32_t 
 
     auto bindMessage = CBindProtocolMessage(spec->specName(), object->m_seq, version);
     sendMessage(bindMessage);
-
-    waitForObject(object);
 
     return object;
 }
@@ -341,9 +419,11 @@ SP<CClientObject> CClientSocket::makeObject(const std::string& protocolName, con
 }
 
 void CClientSocket::waitForObject(SP<IWireObject> x) {
+    const auto self   = m_self.lock();
     m_waitingOnObject = x;
     while (!x->m_id && !m_error) {
-        dispatchEvents(true);
+        if (!dispatchEvents(true))
+            break;
     }
     m_waitingOnObject.reset();
 }
@@ -405,11 +485,19 @@ SP<IObject> CClientSocket::objectForSeq(uint32_t seq) {
 }
 
 void CClientSocket::disconnectOnError() {
-    m_error = true;
+    const auto self = m_self.lock();
+    m_error         = true;
     m_fd.reset();
+
+    auto pending = std::exchange(m_pendingBinds, {});
+    for (auto& [seq, completion] : pending) {
+        if (completion)
+            completion(nullptr);
+    }
 }
 
 void CClientSocket::roundtrip() {
+    const auto self = m_self.lock();
     if (m_error)
         return;
 
