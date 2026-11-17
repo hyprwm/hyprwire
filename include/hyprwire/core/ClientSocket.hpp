@@ -1,6 +1,7 @@
 #pragma once
 
 #include <hyprutils/memory/SharedPtr.hpp>
+#include <functional>
 
 namespace Hyprwire {
     class IProtocolClientImplementation;
@@ -45,6 +46,17 @@ namespace Hyprwire {
             Bind a protocol object
         */
         virtual Hyprutils::Memory::CSharedPointer<IObject> bindProtocol(const Hyprutils::Memory::CSharedPointer<IProtocolSpec>& spec, uint32_t version) = 0;
+
+        /*
+            Bind without waiting for the server's binding reply. Writes may still block under backpressure.
+            A non-empty completion is called exactly once, with a confirmed object or nullptr on failure.
+            Validation failures may complete inline; pending binds complete during dispatch or socket teardown.
+            Success runs before subsequent events, allowing the completion to attach object listeners.
+            Completions may bind again or release the socket. Releasing its last reference cancels remaining
+            binds with nullptr, after any active dispatch finishes. Keep callback captures alive until completion.
+        */
+        virtual void bindProtocolAsync(const Hyprutils::Memory::CSharedPointer<IProtocolSpec>& spec, uint32_t version,
+                                       std::function<void(Hyprutils::Memory::CSharedPointer<IObject>)>&& completion) = 0;
 
         /*
             Get an object from an id

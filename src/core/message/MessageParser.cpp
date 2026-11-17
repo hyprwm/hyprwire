@@ -45,7 +45,7 @@ eMessageParsingResult CMessageParser::handleMessage(SSocketRawParsedMessage& dat
 
 eMessageParsingResult CMessageParser::handleMessage(SSocketRawParsedMessage& data, SP<CClientSocket> client) {
     size_t needle = 0;
-    while (needle < data.data.size()) {
+    while (needle < data.data.size() && !client->m_error) {
         auto ret = parseSingleMessage(data, needle, client);
         if (ret == 0)
             return MESSAGE_PARSED_ERROR;
