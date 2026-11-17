@@ -16,6 +16,7 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <utility>
 
 #if defined(__FreeBSD__)
 #include <sys/ucred.h>
@@ -31,10 +32,29 @@ CServerClient::CServerClient(int fd) : m_fd(fd) {
 
 CServerClient::~CServerClient() {
     TRACE(Debug::log(TRACE, "[{}] destroying client", m_fd.get()));
+    disconnect();
+}
 
-    for (const auto& o : m_objects) {
+void CServerClient::disconnect() {
+    if (m_disconnecting || m_disconnected)
+        return;
+
+    m_disconnecting = true;
+    m_error         = true;
+    m_fd.reset();
+
+    auto objects = std::exchange(m_objects, {});
+
+    for (const auto& o : objects) {
+        o->m_destroyed = true;
         o->sendDestroyIfNeeded();
     }
+
+    m_disconnected  = true;
+    m_disconnecting = false;
+    auto handler    = std::exchange(m_disconnectHandler, {});
+    if (handler)
+        handler();
 }
 
 void CServerClient::dispatchFirstPoll() {
@@ -50,6 +70,9 @@ void CServerClient::dispatchFirstPoll() {
 
     if (m_server->m_newClientHandler)
         m_server->m_newClientHandler(m_self.lock());
+
+    if (m_error)
+        return;
 
     setupExposedProtocols();
 }
@@ -131,6 +154,9 @@ void CServerClient::sendMessage(const IMessage& message) {
 }
 
 SP<CServerObject> CServerClient::createObject(const std::string& protocol, const std::string& object, uint32_t version, uint32_t seq) {
+    if (m_error || !m_server)
+        return nullptr;
+
     auto obj       = makeShared<CServerObject>(m_self.lock());
     obj->m_id      = m_maxId++;
     obj->m_self    = obj;
@@ -244,6 +270,16 @@ std::optional<SPeerCredentials> CServerClient::getPeerCredentials() const {
 
 void CServerClient::setProtocolFilter(std::function<bool(std::string_view)>&& fn) {
     m_protocolFilter = std::move(fn);
+}
+
+void CServerClient::setDisconnectHandler(std::function<void()>&& fn) {
+    if (m_disconnected) {
+        if (fn)
+            fn();
+        return;
+    }
+
+    m_disconnectHandler = std::move(fn);
 }
 
 void CServerClient::setupExposedProtocols() {
