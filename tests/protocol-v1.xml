@@ -116,5 +116,12 @@
       <returns iface="my_object_v1"/>
     </c2s>
 
+    <s2c name="send_enum">
+      <description summary="Send an enum message">
+            Sends an enum message to the client
+      </description>
+      <arg name="message" type="enum" interface="my_enum" summary="message"/>
+    </s2c>
+
   </object>
 </protocol>

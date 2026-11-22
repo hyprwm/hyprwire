@@ -242,8 +242,10 @@ static bool scanProtocol(const pugi::xml_document& doc) {
                 if (param.name() == std::string_view{"arg"}) {
                     auto& a = method.args.emplace_back(SRequestArgument{
                         .magic     = strToMagic(param.attribute("type").as_string()),
+                        .interface = param.attribute("interface").as_string(""),
                         .name      = param.attribute("name").as_string(),
                         .allowNull = param.attribute("allow_null").as_bool(),
+                        .isEnum    = param.attribute("type").as_string() == std::string_view{"enum"},
                     });
                     if (a.magic == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY)
                         a.arrType = strToMagic(std::string{param.attribute("type").as_string()}.substr(6));
