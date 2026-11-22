@@ -1,7 +1,7 @@
 # Wire Docs
 
 This document describes the hyprwire wire format: what bytes go over the socket, and the rules
-both sides must follow.
+both sides must follow. For the protocol XML format, see [PROTOCOLS.md](./PROTOCOLS.md).
 
 ## Transport
 
@@ -297,4 +297,4 @@ Having fewer fds than `FD` arguments, or receiving fds that are not used by any 
 
 ## Sample XML protocol spec
 
-See [protocol-v1.xml](../tests/protocol-v1.xml)
+See [protocol-v1.xml](../tests/protocol-v1.xml), and [PROTOCOLS.md](./PROTOCOLS.md) for a description of the format.
