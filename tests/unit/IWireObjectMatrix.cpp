@@ -187,6 +187,19 @@ TEST(IWireObjectMatrix, CallFailsForUnsupportedArrayElementType) {
     EXPECT_TRUE(obj->m_errd);
 }
 
+TEST(IWireObjectMatrix, CallRejectsOversizedArray) {
+    auto obj          = makeObject();
+    obj->m_id         = 13;
+    obj->m_methodsOut = {
+        SMethod{.idx = 0, .params = {HW_MESSAGE_MAGIC_TYPE_ARRAY, HW_MESSAGE_MAGIC_TYPE_UINT}, .returnsType = "", .since = 0},
+    };
+
+    uint32_t dummy = 1;
+    EXPECT_EQ(obj->call(0, &dummy, HYPRWIRE_MAX_ARRAY_LENGTH + 1), 0u);
+    EXPECT_TRUE(obj->m_errd);
+    EXPECT_TRUE(obj->m_lastSentData.empty());
+}
+
 TEST(IWireObjectMatrix, CallMarksObjectDestroyedWhenDestructorMethodIsCalled) {
     auto obj          = makeObject();
     obj->m_id         = 44;

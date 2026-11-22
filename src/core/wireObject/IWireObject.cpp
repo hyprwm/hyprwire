@@ -179,6 +179,13 @@ uint32_t IWireObject::call(uint32_t id, ...) {
 
                 auto arrayData = va_arg(va, void*);
                 auto arrayLen  = va_arg(va, uint32_t);
+
+                if (arrayLen > HYPRWIRE_MAX_ARRAY_LENGTH) {
+                    Debug::log(ERR, "core protocol error: array of {} elements exceeds max array size of {}", arrayLen, HYPRWIRE_MAX_ARRAY_LENGTH);
+                    errd();
+                    return 0;
+                }
+
                 data.append_range(g_messageParser->encodeVarInt(arrayLen));
 
                 switch (arrType) {
