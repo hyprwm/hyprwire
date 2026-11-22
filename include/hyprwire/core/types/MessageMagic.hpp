@@ -10,8 +10,8 @@ namespace Hyprwire {
         HW_MESSAGE_MAGIC_END = 0x0,
 
         /*
-            Primitive type identifiers. These are all 4 bytes.
-            SEQ and OBJECT_ID are U32.
+            Primitive type identifiers. These are all 4 bytes, in host byte order.
+            SEQ is U32. OBJECT_ID is reserved and not implemented.
         */
         HW_MESSAGE_MAGIC_TYPE_UINT      = 0x10,
         HW_MESSAGE_MAGIC_TYPE_INT       = 0x11,
@@ -22,7 +22,8 @@ namespace Hyprwire {
         /*
             Variable length types.
 
-            VLQ = Variable Length Quantity. See https://en.wikipedia.org/wiki/Variable-length_quantity.
+            VLQ = Variable Length Quantity: 7 bits per byte, least significant group first,
+            the top bit set if another byte follows. At most 4 bytes.
         */
 
         /*
@@ -40,11 +41,12 @@ namespace Hyprwire {
             Note that ARRAY strips the magic from each element, as it's already in the arr.
             For example, for UINT data would be packs of 4 bytes.
             For a string, it's [len : VLQ][data : len B].
+            For FD, there is no data, the n_els FDs are passed via control messages.
         */
         HW_MESSAGE_MAGIC_TYPE_ARRAY = 0x21,
 
         /*
-            [magic : 1B][id : UINT][name_len : VLQ][object name ...]
+            [magic : 1B][id : 4B]
         */
         HW_MESSAGE_MAGIC_TYPE_OBJECT = 0x22,
 
