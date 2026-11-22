@@ -2,6 +2,7 @@
 
 #include "core/message/MessageParser.hpp"
 #include "core/message/messages/GenericProtocolMessage.hpp"
+#include "helpers/Defines.hpp"
 
 #include <hyprwire/core/types/MessageMagic.hpp>
 
@@ -109,13 +110,28 @@ TEST(MessagesGenericProtocol, RejectsTooLargeArray) {
     raw.push_back(HW_MESSAGE_MAGIC_TYPE_ARRAY);
     raw.push_back(HW_MESSAGE_MAGIC_TYPE_UINT);
 
-    const auto oversized = parser.encodeVarInt(10000);
+    const auto oversized = parser.encodeVarInt(HYPRWIRE_MAX_ARRAY_LENGTH + 1);
     raw.insert(raw.end(), oversized.begin(), oversized.end());
 
     std::vector<int>        fds;
     CGenericProtocolMessage msg(raw, fds, 0);
 
     EXPECT_EQ(msg.m_len, 0);
+}
+
+TEST(MessagesGenericProtocol, AcceptsMaxLengthArray) {
+    CMessageParser parser;
+    auto           raw = makeGenericHeader(1, 2);
+    raw.push_back(HW_MESSAGE_MAGIC_TYPE_ARRAY);
+    raw.push_back(HW_MESSAGE_MAGIC_TYPE_UINT);
+    raw.append_range(parser.encodeVarInt(HYPRWIRE_MAX_ARRAY_LENGTH));
+    raw.resize(raw.size() + (sizeof(uint32_t) * HYPRWIRE_MAX_ARRAY_LENGTH));
+    raw.push_back(HW_MESSAGE_MAGIC_END);
+
+    std::vector<int>        fds;
+    CGenericProtocolMessage msg(raw, fds, 0);
+
+    EXPECT_EQ(msg.m_len, raw.size());
 }
 
 TEST(MessagesGenericProtocol, RejectsArrayStringOverrunningBuffer) {

@@ -3,6 +3,7 @@
 #include "../../Macros.hpp"
 #include "../../helpers/Log.hpp"
 #include "../../helpers/FFI.hpp"
+#include "../../helpers/Defines.hpp"
 #include "../client/ClientObject.hpp"
 #include "../server/ServerObject.hpp"
 #include "../message/MessageType.hpp"
@@ -361,9 +362,9 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
 
                 size_t arrMessageLen = 2 + lenLen;
 
-                if (arrLen > 10000) {
+                if (arrLen > HYPRWIRE_MAX_ARRAY_LENGTH) {
                     // raise protocol error
-                    const auto MSG = std::format("method {} param idx {} max array size of 10000 exceeded", id, i);
+                    const auto MSG = std::format("method {} param idx {} max array size of {} exceeded", id, i, HYPRWIRE_MAX_ARRAY_LENGTH);
                     Debug::log(ERR, "core protocol error: {}", MSG);
                     error(m_id, MSG);
                     return;

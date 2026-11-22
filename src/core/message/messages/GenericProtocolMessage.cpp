@@ -1,6 +1,7 @@
 #include "GenericProtocolMessage.hpp"
 #include "../MessageType.hpp"
 #include "../MessageParser.hpp"
+#include "../../../helpers/Defines.hpp"
 #include "../../../helpers/Env.hpp"
 #include "../../../helpers/Log.hpp"
 
@@ -45,8 +46,8 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
                     auto [arrLen, lenLen] = g_messageParser->parseVarInt(data, offset + i + 2);
                     size_t arrMessageLen  = 2 + lenLen;
 
-                    if (arrLen >= 10000) {
-                        Debug::log(TRACE, "GenericProtocolMessage: failed demarshaling array message, array max size is 10000.");
+                    if (arrLen > HYPRWIRE_MAX_ARRAY_LENGTH) {
+                        Debug::log(TRACE, "GenericProtocolMessage: failed demarshaling array message, array max size is {}.", HYPRWIRE_MAX_ARRAY_LENGTH);
                         return;
                     }
 
