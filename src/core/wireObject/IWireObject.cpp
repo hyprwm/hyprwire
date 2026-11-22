@@ -353,7 +353,7 @@ void IWireObject::called(uint32_t id, const std::span<const uint8_t>& data, cons
 
                 if (arrType != wireType) {
                     // raise protocol error
-                    const auto MSG = std::format("method {} param idx {} should be {} but was {}", id, i, magicToString(PARAM), magicToString(WIRE_PARAM));
+                    const auto MSG = std::format("method {} param idx {} should be array of {} but was array of {}", id, i, magicToString(arrType), magicToString(wireType));
                     Debug::log(ERR, "core protocol error: {}", MSG);
                     error(m_id, MSG);
                     return;
