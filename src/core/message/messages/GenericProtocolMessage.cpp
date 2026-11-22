@@ -42,7 +42,7 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
                 }
                 case HW_MESSAGE_MAGIC_TYPE_ARRAY: {
                     const auto arrType    = sc<eMessageMagic>(data.at(offset + i + 1));
-                    auto [arrLen, lenLen] = g_messageParser->parseVarInt(std::span<const uint8_t>{&data[offset + i + 2], data.size() - i});
+                    auto [arrLen, lenLen] = g_messageParser->parseVarInt(data, offset + i + 2);
                     size_t arrMessageLen  = 2 + lenLen;
 
                     if (arrLen >= 10000) {
@@ -61,8 +61,10 @@ CGenericProtocolMessage::CGenericProtocolMessage(const std::vector<uint8_t>& dat
                         }
                         case HW_MESSAGE_MAGIC_TYPE_VARCHAR: {
                             for (size_t j = 0; j < arrLen; ++j) {
-                                auto [strLen, strlenLen] =
-                                    g_messageParser->parseVarInt(std::span<const uint8_t>{&data[offset + i + arrMessageLen], data.size() - i - arrMessageLen});
+                                auto [strLen, strlenLen] = g_messageParser->parseVarInt(data, offset + i + arrMessageLen);
+                                if (!strlenLen)
+                                    return;
+
                                 arrMessageLen += strLen + strlenLen;
                             }
                             break;

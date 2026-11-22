@@ -118,6 +118,21 @@ TEST(MessagesGenericProtocol, RejectsTooLargeArray) {
     EXPECT_EQ(msg.m_len, 0);
 }
 
+TEST(MessagesGenericProtocol, RejectsArrayStringOverrunningBuffer) {
+    CMessageParser parser;
+    auto           raw = makeGenericHeader(1, 2);
+    raw.push_back(HW_MESSAGE_MAGIC_TYPE_ARRAY);
+    raw.push_back(HW_MESSAGE_MAGIC_TYPE_VARCHAR);
+    raw.append_range(parser.encodeVarInt(2));
+    raw.append_range(parser.encodeVarInt(1 << 27));
+    raw.push_back(HW_MESSAGE_MAGIC_END);
+
+    std::vector<int>        fds;
+    CGenericProtocolMessage msg(raw, fds, 0);
+
+    EXPECT_EQ(msg.m_len, 0);
+}
+
 TEST(MessagesGenericProtocol, ResolveSeqUpdatesObjectAndSerializedPayload) {
     auto raw = makeGenericHeader(1, 9);
     raw.push_back(HW_MESSAGE_MAGIC_END);
