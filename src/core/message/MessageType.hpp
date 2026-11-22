@@ -13,7 +13,7 @@ namespace Hyprwire {
         HW_MESSAGE_TYPE_SUP = 1,
 
         /*
-            Sent by the server after a HELLO.
+            Sent by the server after a SUP.
             Params: arr(uint) -> versions supported
         */
         HW_MESSAGE_TYPE_HANDSHAKE_BEGIN = 2,
@@ -32,7 +32,7 @@ namespace Hyprwire {
 
         /*
             Sent by the client to bind to a specific protocol spec
-            Params: uint -> seq, str -> protocol spec
+            Params: uint -> seq, str -> protocol name, uint -> version
         */
         HW_MESSAGE_TYPE_BIND_PROTOCOL = 10,
 
