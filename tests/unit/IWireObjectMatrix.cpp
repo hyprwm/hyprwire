@@ -273,7 +273,7 @@ TEST(IWireObjectMatrix, CalledRejectsArrayWireTypeMismatch) {
 
     obj->called(0, std::span<const uint8_t>{badData.data(), badData.size()}, {});
 
-    EXPECT_NE(obj->m_lastErrorMsg.find("should be"), std::string::npos);
+    EXPECT_NE(obj->m_lastErrorMsg.find("should be array of UINT but was array of INT"), std::string::npos);
 }
 
 TEST(IWireObjectMatrix, CalledRejectsOversizedArrayPayload) {
