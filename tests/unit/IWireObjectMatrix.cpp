@@ -4,6 +4,7 @@
 #include "core/message/MessageType.hpp"
 #include "core/message/messages/IMessage.hpp"
 #include "core/wireObject/IWireObject.hpp"
+#include "helpers/Defines.hpp"
 
 #include <hyprwire/core/types/MessageMagic.hpp>
 
@@ -271,7 +272,7 @@ TEST(IWireObjectMatrix, CalledRejectsOversizedArrayPayload) {
     obj->listen(0, fnToVoid(&onNoop));
 
     CMessageParser       parser;
-    auto                 lenVarInt = parser.encodeVarInt(10001);
+    auto                 lenVarInt = parser.encodeVarInt(HYPRWIRE_MAX_ARRAY_LENGTH + 1);
 
     std::vector<uint8_t> data = {
         HW_MESSAGE_MAGIC_TYPE_ARRAY,
