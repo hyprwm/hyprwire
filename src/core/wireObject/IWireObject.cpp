@@ -46,11 +46,7 @@ namespace {
 }
 
 static std::pair<size_t, size_t> parseArgumentLength(const std::span<const uint8_t>& data) {
-    if (data.empty())
-        return {0, 0};
-
-    // encodeVarInt emits at most four bytes. Bound the parser before checking termination.
-    const auto [length, bytes] = g_messageParser->parseVarInt(data.first(std::min(data.size(), size_t{4})));
+    const auto [length, bytes] = g_messageParser->parseVarInt(data);
     if (!bytes || (data[bytes - 1] & 0x80))
         return {0, 0};
 
