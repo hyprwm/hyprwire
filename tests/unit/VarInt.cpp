@@ -45,3 +45,19 @@ TEST(VarInt, ParseOutOfBoundsOffsetReturnsZeroPair) {
     EXPECT_EQ(parser.parseVarInt(data, data.size()), expected);
     EXPECT_EQ(parser.parseVarInt(data, data.size() + 42), expected);
 }
+
+TEST(VarInt, ParseEmptySpanReturnsZeroPair) {
+    Hyprwire::CMessageParser parser;
+
+    const auto               expected = std::pair<size_t, size_t>{0, 0};
+    EXPECT_EQ(parser.parseVarInt(std::span<const uint8_t>{}), expected);
+}
+
+TEST(VarInt, ParseStopsAfterFourBytes) {
+    Hyprwire::CMessageParser   parser;
+
+    const std::vector<uint8_t> data = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01};
+    const auto [decoded, n]         = parser.parseVarInt(std::span<const uint8_t>{data.data(), data.size()});
+    EXPECT_EQ(decoded, 268435455u);
+    EXPECT_EQ(n, 4u);
+}
