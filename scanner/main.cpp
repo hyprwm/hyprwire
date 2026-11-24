@@ -196,7 +196,15 @@ static std::string argsToC(const std::vector<SRequestArgument>& args, bool noNam
     return cstr;
 }
 
-static bool validateArg(const SRequestArgument& arg, const std::string& objectName, const std::string& methodName) {
+static bool validateArg(const SRequestArgument& arg, std::string_view type, const std::string& objectName, const std::string& methodName) {
+    const bool BAD_ARRAY =
+        arg.magic == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY && (arg.arrType == Hyprwire::HW_MESSAGE_MAGIC_END || arg.arrType == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY);
+
+    if (arg.magic == Hyprwire::HW_MESSAGE_MAGIC_END || BAD_ARRAY) {
+        std::cerr << std::format("Error: {}.{}: arg \"{}\" has invalid type \"{}\"\n", objectName, methodName, arg.name, type);
+        return false;
+    }
+
     if (!arg.isEnum)
         return true;
 
@@ -262,7 +270,7 @@ static bool scanProtocol(const pugi::xml_document& doc) {
                     if (a.magic == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY)
                         a.arrType = strToMagic(std::string{param.attribute("type").as_string()}.substr(6));
 
-                    if (!validateArg(a, spec.name, method.name))
+                    if (!validateArg(a, param.attribute("type").as_string(), spec.name, method.name))
                         return false;
                 }
 
@@ -299,7 +307,7 @@ static bool scanProtocol(const pugi::xml_document& doc) {
                     if (a.magic == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY)
                         a.arrType = strToMagic(std::string{param.attribute("type").as_string()}.substr(6));
 
-                    if (!validateArg(a, spec.name, method.name))
+                    if (!validateArg(a, param.attribute("type").as_string(), spec.name, method.name))
                         return false;
 
                     continue;
