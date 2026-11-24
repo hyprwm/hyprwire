@@ -196,6 +196,18 @@ static std::string argsToC(const std::vector<SRequestArgument>& args, bool noNam
     return cstr;
 }
 
+static bool validateArg(const SRequestArgument& arg, const std::string& objectName, const std::string& methodName) {
+    if (!arg.isEnum)
+        return true;
+
+    const auto ENUM_NAME = PROTO_DATA.nameOriginal + "_" + arg.interface;
+    if (std::ranges::any_of(ENUM_SPECS, [&ENUM_NAME](const auto& e) { return e.interface == ENUM_NAME; }))
+        return true;
+
+    std::cerr << std::format("Error: {}.{}: arg \"{}\" references unknown enum \"{}\"\n", objectName, methodName, arg.name, arg.interface);
+    return false;
+}
+
 static bool scanProtocol(const pugi::xml_document& doc) {
 
     for (const auto& c : doc.child("protocol").children()) {
@@ -249,6 +261,9 @@ static bool scanProtocol(const pugi::xml_document& doc) {
                     });
                     if (a.magic == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY)
                         a.arrType = strToMagic(std::string{param.attribute("type").as_string()}.substr(6));
+
+                    if (!validateArg(a, spec.name, method.name))
+                        return false;
                 }
 
                 if (param.name() == std::string_view{"returns"}) {
@@ -283,6 +298,10 @@ static bool scanProtocol(const pugi::xml_document& doc) {
                     });
                     if (a.magic == Hyprwire::HW_MESSAGE_MAGIC_TYPE_ARRAY)
                         a.arrType = strToMagic(std::string{param.attribute("type").as_string()}.substr(6));
+
+                    if (!validateArg(a, spec.name, method.name))
+                        return false;
+
                     continue;
                 }
 
@@ -877,7 +896,9 @@ int main(int argc, char** argv, char** envp) {
         std::format("// Generated with hyprwire-scanner {}. Made with vaxry's keyboard and ❤️.\n// {}\n\n/*\n This protocol's authors' copyright notice is:\n\n{}\n*/\n\n",
                     SCANNER_VERSION, PROTO_DATA.nameOriginal, std::string{doc.child("protocol").child("copyright").child_value()});
 
-    scanProtocol(doc);
+    if (!scanProtocol(doc))
+        return 1;
+
     generateProtocolHeader(doc);
     if (clientCode) {
         generateClientCodeHeader(doc);
